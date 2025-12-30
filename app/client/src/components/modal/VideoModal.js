@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Button, ButtonGroup, Grid, IconButton, InputAdornment, Modal, Paper, Slide, TextField } from '@mui/material'
+import { Autocomplete, Button, ButtonGroup, Grid, IconButton, InputAdornment, Modal, Paper, Slide, TextField } from '@mui/material'
 import LinkIcon from '@mui/icons-material/Link'
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
 import ShuffleIcon from '@mui/icons-material/Shuffle'
@@ -7,9 +7,10 @@ import SaveIcon from '@mui/icons-material/Save'
 import CloseIcon from '@mui/icons-material/Close'
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff'
 import VisibilityIcon from '@mui/icons-material/Visibility'
+import SportsEsportsIcon from '@mui/icons-material/SportsEsports'
 import { CopyToClipboard } from 'react-copy-to-clipboard'
 import { copyToClipboard, getPublicWatchUrl, getServedBy, getUrl, getVideoSources } from '../../common/utils'
-import { ConfigService, VideoService } from '../../services'
+import { ConfigService, VideoService, GameService } from '../../services'
 import SnackbarAlert from '../alert/SnackbarAlert'
 import VideoJSPlayer from '../misc/VideoJSPlayer'
 
@@ -25,7 +26,10 @@ const VideoModal = ({ open, onClose, videoId, feedView, authenticated, updateCal
   const [vid, setVideo] = React.useState(null)
   const [viewAdded, setViewAdded] = React.useState(false)
   const [alert, setAlert] = React.useState({ open: false })
-  const [autoplay, setAutoplay] = useState(false);
+  const [autoplay, setAutoplay] = useState(false)
+  const [selectedGame, setSelectedGame] = React.useState(null)
+  const [gameOptions, setGameOptions] = React.useState([])
+  const [gameSearchLoading, setGameSearchLoading] = React.useState(false)
 
   const playerRef = React.useRef()
 
@@ -69,6 +73,17 @@ const VideoModal = ({ open, onClose, videoId, feedView, authenticated, updateCal
         setDescription(details.info?.description)
         setPrivateView(details.info?.private)
         setUpdatable(false)
+        // Fetch linked game
+        try {
+          const gameData = (await GameService.getVideoGame(videoId)).data
+          if (gameData) {
+            setSelectedGame(gameData)
+          } else {
+            setSelectedGame(null)
+          }
+        } catch (err) {
+          setSelectedGame(null)
+        }
       } catch (err) {
         setAlert(
           setAlert({
@@ -83,6 +98,69 @@ const VideoModal = ({ open, onClose, videoId, feedView, authenticated, updateCal
       fetch()
     }
   }, [videoId])
+
+  const searchGames = async (query) => {
+    if (!query || query.length < 2) return setGameOptions([])
+    setGameSearchLoading(true)
+    try {
+      setGameOptions((await GameService.searchSteamGrid(query)).data || [])
+    } catch (err) {
+      setGameOptions([])
+    }
+    setGameSearchLoading(false)
+  }
+
+  const handleGameChange = async (event, newValue) => {
+    if (!authenticated) return
+
+    if (newValue) {
+      try {
+        const allGames = (await GameService.getGames()).data
+        let game = allGames.find(g => g.steamgriddb_id === newValue.id)
+
+        if (!game) {
+          const assets = (await GameService.getGameAssets(newValue.id)).data
+          const gameData = {
+            steamgriddb_id: newValue.id,
+            name: newValue.name,
+            release_date: newValue.release_date ? new Date(newValue.release_date * 1000).toISOString().split('T')[0] : null,
+            hero_url: assets.hero_url,
+            logo_url: assets.logo_url,
+            icon_url: assets.icon_url,
+          }
+          game = (await GameService.createGame(gameData)).data
+        }
+
+        await GameService.linkVideoToGame(vid.video_id, game.id)
+
+        setSelectedGame(game)
+        setAlert({
+          type: 'success',
+          message: `Linked to ${newValue.name}`,
+          open: true,
+        })
+      } catch (err) {
+        console.error('Error linking game:', err)
+        setAlert({
+          type: 'error',
+          message: 'Failed to link game',
+          open: true,
+        })
+      }
+    } else {
+      try {
+        await GameService.unlinkVideoFromGame(vid.video_id)
+        setSelectedGame(null)
+        setAlert({
+          type: 'info',
+          message: 'Game link removed',
+          open: true,
+        })
+      } catch (err) {
+        console.error('Error unlinking game:', err)
+      }
+    }
+  }
 
   const handleMouseDown = (e) => {
     if (e.button === 1) {
@@ -187,7 +265,7 @@ const VideoModal = ({ open, onClose, videoId, feedView, authenticated, updateCal
       </SnackbarAlert>
       <Modal open={open} onClose={onClose} closeAfterTransition disableAutoFocus={true}>
         <Slide in={open}>
-          <Paper sx={{ height: '100%', borderRadius: '0px', overflowY: 'auto', background: 'rgba(0, 0, 0, 0.4)' }}>
+          <Paper sx={{ height: '100%', borderRadius: '0px', overflowY: 'auto', background: 'rgba(0, 0, 0, 0.4)', px: '20px', pt: '20px', pb: 0 }}>
             <IconButton
               color="inherit"
               onClick={onClose}
@@ -312,6 +390,47 @@ const VideoModal = ({ open, onClose, videoId, feedView, authenticated, updateCal
                       rows={2}
                       multiline
                       onClick={(e) => e.stopPropagation()}
+                    />
+                  </Paper>
+                )}
+                {/* Game ID search bar */}
+                {authenticated && (
+                  <Paper sx={{ mt: 1, background: 'rgba(50, 50, 50, 0.9)' }}>
+                    <Autocomplete
+                      value={selectedGame}
+                      onChange={handleGameChange}
+                      onInputChange={(_, val) => searchGames(val)}
+                      options={gameOptions}
+                      getOptionLabel={(option) => option.name || ''}
+                      loading={gameSearchLoading}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          placeholder="Search for a game..."
+                          size="small"
+                          sx={{ '& .MuiOutlinedInput-notchedOutline': { border: 'none' } }}
+                          InputProps={{
+                            ...params.InputProps,
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <SportsEsportsIcon sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
+                              </InputAdornment>
+                            ),
+                          }}
+                        />
+                      )}
+                      renderOption={(props, option) => (
+                        <li {...props} key={option.id}>
+                          {option.name}
+                          {option.release_date && ` (${new Date(option.release_date * 1000).getFullYear()})`}
+                        </li>
+                      )}
+                      sx={{
+                        '& .MuiAutocomplete-input, & .MuiAutocomplete-popupIndicator, & .MuiAutocomplete-clearIndicator': {
+                          color: '#fff',
+                          opacity: 0.7,
+                        },
+                      }}
                     />
                   </Paper>
                 )}

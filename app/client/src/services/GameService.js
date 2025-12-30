@@ -1,0 +1,36 @@
+import Api from './Api'
+
+const service = {
+  searchSteamGrid(query) {
+    return Api().get('/api/steamgrid/search', {
+      params: {
+        query,
+      },
+    })
+  },
+  getGameAssets(gameId) {
+    return Api().get(`/api/steamgrid/game/${gameId}/assets`)
+  },
+  getGames() {
+    return Api().get('/api/games')
+  },
+  getGameVideos(gameId) {
+    return Api().get(`/api/games/${gameId}/videos`)
+  },
+  createGame(gameData) {
+    return Api().post('/api/games', gameData)
+  },
+  linkVideoToGame(videoId, gameId) {
+    return Api().post(`/api/videos/${videoId}/game`, {
+      game_id: gameId,
+    })
+  },
+  getVideoGame(videoId) {
+    return Api().get(`/api/videos/${videoId}/game`)
+  },
+  unlinkVideoFromGame(videoId) {
+    return Api().delete(`/api/videos/${videoId}/game`)
+  },
+}
+
+export default service

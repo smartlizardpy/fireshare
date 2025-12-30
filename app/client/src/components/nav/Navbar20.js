@@ -31,6 +31,7 @@ import TableRowsIcon from '@mui/icons-material/TableRows'
 import BugReportIcon from '@mui/icons-material/BugReport'
 import StorageIcon from '@mui/icons-material/Storage'
 import SyncIcon from '@mui/icons-material/Sync'
+import SportsEsportsIcon from '@mui/icons-material/SportsEsports'
 
 import { Grid, ToggleButton, ToggleButtonGroup } from '@mui/material'
 import { useNavigate } from 'react-router-dom'
@@ -51,6 +52,7 @@ const CARD_SIZE_MULTIPLIER = 2
 const pages = [
   { title: 'My Videos', icon: <VideoLibraryIcon />, href: '/', private: true },
   { title: 'Public Videos', icon: <PublicIcon />, href: '/feed', private: false },
+  { title: 'Games', icon: <SportsEsportsIcon />, href: '/games', private: true },
   { title: 'Settings', icon: <SettingsIcon />, href: '/settings', private: true },
 ]
 

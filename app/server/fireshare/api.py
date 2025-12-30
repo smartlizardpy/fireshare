@@ -15,13 +15,34 @@ from werkzeug.utils import secure_filename
 
 
 from . import db, logger
-from .models import Video, VideoInfo, VideoView
+from .models import Video, VideoInfo, VideoView, GameMetadata, VideoGameLink
 from .constants import SUPPORTED_FILE_TYPES
+from datetime import datetime
 
 templates_path = os.environ.get('TEMPLATE_PATH') or 'templates'
 api = Blueprint('api', __name__, template_folder=templates_path)
 
 CORS(api, supports_credentials=True)
+
+def get_steamgriddb_api_key():
+    """
+    Get SteamGridDB API key from config.json first, then fall back to environment variable.
+    """
+    # First check config.json
+    paths = current_app.config['PATHS']
+    config_path = paths['data'] / 'config.json'
+    if config_path.exists():
+        try:
+            with open(config_path, 'r') as configfile:
+                config = json.load(configfile)
+                api_key = config.get('integrations', {}).get('steamgriddb_api_key', '')
+                if api_key:
+                    return api_key
+        except:
+            pass
+
+    # Fall back to environment variable
+    return os.environ.get('STEAMGRIDDB_API_KEY', '')
 
 def get_video_path(id, subid=None, quality=None):
     video = Video.query.filter_by(video_id=id).first()
@@ -561,6 +582,126 @@ def folder_size():
         "size_bytes": size_bytes,
         "size_pretty": size_pretty
     })
+
+@api.route('/api/steamgrid/search', methods=["GET"])
+def search_steamgrid():
+    query = request.args.get('query')
+    if not query:
+        return Response(status=400, response='Query parameter is required.')
+
+    api_key = get_steamgriddb_api_key()
+    if not api_key:
+        return Response(status=503, response='SteamGridDB API key not configured.')
+
+    from .steamgrid import SteamGridDBClient
+    client = SteamGridDBClient(api_key)
+
+    results = client.search_games(query)
+    return jsonify(results)
+
+@api.route('/api/steamgrid/game/<int:game_id>/assets', methods=["GET"])
+def get_steamgrid_assets(game_id):
+    api_key = get_steamgriddb_api_key()
+    if not api_key:
+        return Response(status=503, response='SteamGridDB API key not configured.')
+
+    from .steamgrid import SteamGridDBClient
+    client = SteamGridDBClient(api_key)
+
+    assets = client.get_game_assets(game_id)
+    return jsonify(assets)
+
+@api.route('/api/games', methods=["GET"])
+def get_games():
+    games = GameMetadata.query.all()
+    return jsonify([game.json() for game in games])
+
+@api.route('/api/games', methods=["POST"])
+@login_required
+def create_game():
+    data = request.json
+
+    if not data or not data.get('name'):
+        return Response(status=400, response='Game name is required.')
+
+    game = GameMetadata(
+        steamgriddb_id=data.get('steamgriddb_id'),
+        name=data['name'],
+        release_date=data.get('release_date'),
+        hero_url=data.get('hero_url'),
+        logo_url=data.get('logo_url'),
+        icon_url=data.get('icon_url'),
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
+    )
+
+    db.session.add(game)
+    db.session.commit()
+
+    return jsonify(game.json()), 201
+
+@api.route('/api/videos/<video_id>/game', methods=["POST"])
+@login_required
+def link_video_to_game(video_id):
+    data = request.json
+
+    if not data or not data.get('game_id'):
+        return Response(status=400, response='Game ID is required.')
+
+    video = Video.query.filter_by(video_id=video_id).first()
+    if not video:
+        return Response(status=404, response='Video not found.')
+
+    game = GameMetadata.query.get(data['game_id'])
+    if not game:
+        return Response(status=404, response='Game not found.')
+
+    existing_link = VideoGameLink.query.filter_by(video_id=video_id).first()
+    if existing_link:
+        existing_link.game_id = data['game_id']
+        existing_link.created_at = datetime.utcnow()
+    else:
+        link = VideoGameLink(
+            video_id=video_id,
+            game_id=data['game_id'],
+            created_at=datetime.utcnow()
+        )
+        db.session.add(link)
+
+    db.session.commit()
+
+    return jsonify({"video_id": video_id, "game_id": data['game_id']}), 201
+
+@api.route('/api/videos/<video_id>/game', methods=["GET"])
+def get_video_game(video_id):
+    link = VideoGameLink.query.filter_by(video_id=video_id).first()
+    if not link:
+        return jsonify(None)
+    return jsonify(link.game.json())
+
+@api.route('/api/videos/<video_id>/game', methods=["DELETE"])
+@login_required
+def unlink_video_from_game(video_id):
+    link = VideoGameLink.query.filter_by(video_id=video_id).first()
+    if not link:
+        return Response(status=404, response='Video is not linked to any game.')
+
+    db.session.delete(link)
+    db.session.commit()
+
+    return Response(status=204)
+
+@api.route('/api/games/<int:game_id>/videos', methods=["GET"])
+def get_game_videos(game_id):
+    game = GameMetadata.query.get(game_id)
+    if not game:
+        return Response(status=404, response='Game not found.')
+
+    links = VideoGameLink.query.filter_by(game_id=game_id).all()
+    video_ids = [link.video_id for link in links]
+    videos = Video.query.filter(Video.video_id.in_(video_ids)).all()
+
+    return jsonify([video.json() for video in videos])
 
 @api.after_request
 def after_request(response):

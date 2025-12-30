@@ -94,7 +94,24 @@ def create_app(init_schedule=False):
         stdPasswordWarning = "You are using the Default Login-Credentials, please consider changing it."
         app.config['WARNINGS'].append(stdPasswordWarning)
         logger.warning(stdPasswordWarning)
-    
+
+    # Check for SteamGridDB API key
+    config_path = Path(app.config['DATA_DIRECTORY']) / 'config.json'
+    steamgrid_api_key = os.environ.get('STEAMGRIDDB_API_KEY', '')
+    if config_path.exists():
+        with open(config_path, 'r') as configfile:
+            try:
+                config_data = json.load(configfile)
+                config_steamgrid_key = config_data.get('integrations', {}).get('steamgriddb_api_key', '')
+                if config_steamgrid_key:
+                    steamgrid_api_key = config_steamgrid_key
+            except:
+                pass
+
+    if not steamgrid_api_key:
+        steamgridWarning = "SteamGridDB API key not configured. Game metadata features are unavailable. Click here to set it up."
+        app.config['WARNINGS'].append(steamgridWarning)
+        logger.warning(steamgridWarning)
 
     paths = {
         'data': Path(app.config['DATA_DIRECTORY']),
