@@ -483,8 +483,9 @@ const VideoModal = ({ open, onClose, videoId, feedView, authenticated, updateCal
                               color: '#fff',
                               opacity: 0.7,
                             },
-                            '& .MuiInputBase-input.Mui-disabled': {
-                              WebkitTextFillColor: 'rgba(255, 255, 255, 0.7)',
+                            '& .Mui-disabled': {
+                              WebkitTextFillColor: '#fff !important',
+                              opacity: '0.7 !important',
                             },
                           }}
                         />
