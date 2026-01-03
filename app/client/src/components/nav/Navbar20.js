@@ -52,7 +52,7 @@ const CARD_SIZE_MULTIPLIER = 2
 const pages = [
   { title: 'My Videos', icon: <VideoLibraryIcon />, href: '/', private: true },
   { title: 'Public Videos', icon: <PublicIcon />, href: '/feed', private: false },
-  { title: 'Games', icon: <SportsEsportsIcon />, href: '/games', private: true },
+  { title: 'Games', icon: <SportsEsportsIcon />, href: '/games', private: false },
   { title: 'Settings', icon: <SettingsIcon />, href: '/settings', private: true },
 ]
 

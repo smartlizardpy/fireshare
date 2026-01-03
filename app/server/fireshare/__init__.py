@@ -131,7 +131,13 @@ def create_app(init_schedule=False):
         if not subpath.is_dir():
             logger.info(f"Creating subpath directory at {str(subpath.absolute())}")
             subpath.mkdir(parents=True, exist_ok=True)
-    
+
+    # Ensure game_assets directory exists
+    game_assets_dir = paths['data'] / 'game_assets'
+    if not game_assets_dir.is_dir():
+        logger.info(f"Creating game_assets directory at {str(game_assets_dir.absolute())}")
+        game_assets_dir.mkdir(parents=True, exist_ok=True)
+
     update_config(paths['data'] / 'config.json')
 
     db.init_app(app)

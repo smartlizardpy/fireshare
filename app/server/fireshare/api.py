@@ -106,6 +106,14 @@ def get_or_update_config():
         if not config_path.exists():
             return Response(status=500, response='Could not find a config to update.')
         config_path.write_text(json.dumps(config, indent=2))
+
+        # Check if SteamGridDB API key was added and remove warning if present
+        steamgrid_api_key = config.get('integrations', {}).get('steamgriddb_api_key', '')
+        if steamgrid_api_key:
+            steamgridWarning = "SteamGridDB API key not configured. Game metadata features are unavailable. Click here to set it up."
+            if steamgridWarning in current_app.config['WARNINGS']:
+                current_app.config['WARNINGS'].remove(steamgridWarning)
+
         return Response(status=200)
 
 @api.route('/api/admin/warnings', methods=["GET"])
@@ -168,14 +176,18 @@ def get_random_video():
     row_count = Video.query.count()
     random_video = Video.query.offset(int(row_count * random.random())).first()
     current_app.logger.info(f"Fetched random video {random_video.video_id}: {random_video.info.title}")
-    return jsonify(random_video.json())
+    vjson = random_video.json()
+    vjson["view_count"] = VideoView.count(random_video.video_id)
+    return jsonify(vjson)
 
 @api.route('/api/video/public/random')
 def get_random_public_video():
     row_count =  Video.query.filter(Video.info.has(private=False)).filter_by(available=True).count()
     random_video = Video.query.filter(Video.info.has(private=False)).filter_by(available=True).offset(int(row_count * random.random())).first()
     current_app.logger.info(f"Fetched public random video {random_video.video_id}: {random_video.info.title}")
-    return jsonify(random_video.json())
+    vjson = random_video.json()
+    vjson["view_count"] = VideoView.count(random_video.video_id)
+    return jsonify(vjson)
 
 @api.route('/api/videos/public')
 def get_public_videos():
@@ -254,7 +266,9 @@ def handle_video_details(id):
         # video_id = request.args['id']
         video = Video.query.filter_by(video_id=id).first()
         if video:
-            return jsonify(video.json())
+            vjson = video.json()
+            vjson["view_count"] = VideoView.count(video.video_id)
+            return jsonify(vjson)
         else:
             return jsonify({
                 'message': 'Video not found'
@@ -613,7 +627,26 @@ def get_steamgrid_assets(game_id):
 
 @api.route('/api/games', methods=["GET"])
 def get_games():
-    games = GameMetadata.query.all()
+    from flask_login import current_user
+
+    # If user is authenticated, show all games
+    if current_user.is_authenticated:
+        games = GameMetadata.query.all()
+    else:
+        # For public users, only show games that have at least one public (available) video
+        games = (
+            db.session.query(GameMetadata)
+            .join(VideoGameLink)
+            .join(Video)
+            .join(VideoInfo)
+            .filter(
+                Video.available.is_(True),
+                VideoInfo.private.is_(False),
+            )
+            .distinct()
+            .all()
+        )
+
     return jsonify([game.json() for game in games])
 
 @api.route('/api/games', methods=["POST"])
@@ -624,19 +657,44 @@ def create_game():
     if not data or not data.get('name'):
         return Response(status=400, response='Game name is required.')
 
+    if not data.get('steamgriddb_id'):
+        return Response(status=400, response='SteamGridDB ID is required.')
+
+    # Get API key and initialize client
+    api_key = get_steamgriddb_api_key()
+    if not api_key:
+        return Response(status=503, response='SteamGridDB API key not configured.')
+
+    from .steamgrid import SteamGridDBClient
+    client = SteamGridDBClient(api_key)
+
+    # Download and save assets
+    paths = current_app.config['PATHS']
+    game_assets_dir = paths['data'] / 'game_assets'
+
+    result = client.download_and_save_assets(data['steamgriddb_id'], game_assets_dir)
+
+    if not result['success']:
+        current_app.logger.error(f"Failed to download assets for game {data['name']}: {result['error']}")
+        return Response(
+            status=500,
+            response=f"Failed to download game assets: {result['error']}"
+        )
+
+    # Create game metadata (without URL fields - they will be constructed dynamically)
     game = GameMetadata(
-        steamgriddb_id=data.get('steamgriddb_id'),
+        steamgriddb_id=data['steamgriddb_id'],
         name=data['name'],
         release_date=data.get('release_date'),
-        hero_url=data.get('hero_url'),
-        logo_url=data.get('logo_url'),
-        icon_url=data.get('icon_url'),
+        # Do NOT set hero_url, logo_url, icon_url - they will be constructed dynamically
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow()
     )
 
     db.session.add(game)
     db.session.commit()
+
+    current_app.logger.info(f"Created game {data['name']} with assets: {result['assets']}")
 
     return jsonify(game.json()), 201
 
@@ -691,17 +749,64 @@ def unlink_video_from_game(video_id):
 
     return Response(status=204)
 
-@api.route('/api/games/<int:game_id>/videos', methods=["GET"])
-def get_game_videos(game_id):
-    game = GameMetadata.query.get(game_id)
+@api.route('/api/game/assets/<int:steamgriddb_id>/<filename>')
+def get_game_asset(steamgriddb_id, filename):
+    # Validate filename to prevent path traversal
+    if not re.match(r'^(hero_[12]|logo_1|icon_1)\.(png|jpg|jpeg|webp)$', filename):
+        return Response(status=400, response='Invalid filename.')
+
+    paths = current_app.config['PATHS']
+    asset_path = paths['data'] / 'game_assets' / str(steamgriddb_id) / filename
+
+    if not asset_path.exists():
+        # Try other extensions if the requested one doesn't exist
+        base_name = filename.rsplit('.', 1)[0]
+        asset_dir = paths['data'] / 'game_assets' / str(steamgriddb_id)
+
+        if asset_dir.exists():
+            for ext in ['.png', '.jpg', '.jpeg', '.webp']:
+                alternative_path = asset_dir / f'{base_name}{ext}'
+                if alternative_path.exists():
+                    asset_path = alternative_path
+                    break
+
+    if not asset_path.exists():
+        return Response(status=404, response='Asset not found.')
+
+    # Determine MIME type from extension
+    ext = asset_path.suffix.lower()
+    mime_types = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp'
+    }
+    mime_type = mime_types.get(ext, 'image/png')
+
+    return send_file(asset_path, mimetype=mime_type)
+
+@api.route('/api/games/<int:steamgriddb_id>/videos', methods=["GET"])
+def get_game_videos(steamgriddb_id):
+    from flask_login import current_user
+
+    game = GameMetadata.query.filter_by(steamgriddb_id=steamgriddb_id).first()
     if not game:
         return Response(status=404, response='Game not found.')
 
-    links = VideoGameLink.query.filter_by(game_id=game_id).all()
-    video_ids = [link.video_id for link in links]
-    videos = Video.query.filter(Video.video_id.in_(video_ids)).all()
+    videos_json = []
+    for link in game.videos:
+        if not current_user.is_authenticated:
+            # Only show available, non-private videos to public users
+            if not link.video.available:
+                continue
+            if not link.video.info or link.video.info.private:
+                continue
 
-    return jsonify([video.json() for video in videos])
+        vjson = link.video.json()
+        vjson["view_count"] = VideoView.count(link.video_id)
+        videos_json.append(vjson)
+
+    return jsonify(videos_json)
 
 @api.after_request
 def after_request(response):

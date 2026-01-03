@@ -7,7 +7,7 @@ import VideoList from '../components/admin/VideoList'
 import LoadingSpinner from '../components/misc/LoadingSpinner'
 import SnackbarAlert from '../components/alert/SnackbarAlert'
 
-const GameVideos = ({ cardSize, listStyle }) => {
+const GameVideos = ({ cardSize, listStyle, authenticated }) => {
   const { gameId } = useParams()
   const [videos, setVideos] = React.useState([])
   const [game, setGame] = React.useState(null)
@@ -20,7 +20,7 @@ const GameVideos = ({ cardSize, listStyle }) => {
       GameService.getGameVideos(gameId)
     ])
       .then(([gamesRes, videosRes]) => {
-        const foundGame = gamesRes.data.find(g => g.id === parseInt(gameId))
+        const foundGame = gamesRes.data.find(g => g.steamgriddb_id === parseInt(gameId))
         setGame(foundGame)
         setVideos(videosRes.data)
         setLoading(false)
@@ -60,15 +60,13 @@ const GameVideos = ({ cardSize, listStyle }) => {
         {listStyle === 'list' ? (
           <VideoList
             videos={videos}
-            authenticated={true}
+            authenticated={authenticated}
             feedView={false}
-            fetchVideos={fetchVideos}
-            handleAlert={setAlert}
           />
         ) : (
           <VideoCards
             videos={videos}
-            authenticated={true}
+            authenticated={authenticated}
             size={cardSize}
             feedView={false}
             fetchVideos={fetchVideos}

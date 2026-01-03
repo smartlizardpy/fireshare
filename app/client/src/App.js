@@ -78,7 +78,7 @@ export default function App() {
           <Route
             path="/games"
             element={
-              <AuthWrapper redirect={'/login'}>
+              <AuthWrapper>
                 <Navbar20 page="/games" collapsed={!drawerOpen} searchable>
                   <Games />
                 </Navbar20>
@@ -88,7 +88,7 @@ export default function App() {
           <Route
             path="/games/:gameId"
             element={
-              <AuthWrapper redirect={'/login'}>
+              <AuthWrapper>
                 <Navbar20 page="/games" collapsed={!drawerOpen} styleToggle cardSlider searchable>
                   <GameVideos />
                 </Navbar20>

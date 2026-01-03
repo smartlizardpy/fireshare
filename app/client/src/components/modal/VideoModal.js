@@ -30,6 +30,7 @@ const VideoModal = ({ open, onClose, videoId, feedView, authenticated, updateCal
   const [selectedGame, setSelectedGame] = React.useState(null)
   const [gameOptions, setGameOptions] = React.useState([])
   const [gameSearchLoading, setGameSearchLoading] = React.useState(false)
+  const [gameLinkLoading, setGameLinkLoading] = React.useState(false)
 
   const playerRef = React.useRef()
 
@@ -114,6 +115,9 @@ const VideoModal = ({ open, onClose, videoId, feedView, authenticated, updateCal
     if (!authenticated) return
 
     if (newValue) {
+      // Set the selected game immediately so it stays visible during loading
+      setSelectedGame(newValue)
+      setGameLinkLoading(true)
       try {
         const allGames = (await GameService.getGames()).data
         let game = allGames.find(g => g.steamgriddb_id === newValue.id)
@@ -133,6 +137,7 @@ const VideoModal = ({ open, onClose, videoId, feedView, authenticated, updateCal
 
         await GameService.linkVideoToGame(vid.video_id, game.id)
 
+        // Update with the full game object from the database
         setSelectedGame(game)
         setAlert({
           type: 'success',
@@ -141,13 +146,18 @@ const VideoModal = ({ open, onClose, videoId, feedView, authenticated, updateCal
         })
       } catch (err) {
         console.error('Error linking game:', err)
+        // Revert selection on error
+        setSelectedGame(null)
         setAlert({
           type: 'error',
           message: 'Failed to link game',
           open: true,
         })
+      } finally {
+        setGameLinkLoading(false)
       }
     } else {
+      setGameLinkLoading(true)
       try {
         await GameService.unlinkVideoFromGame(vid.video_id)
         setSelectedGame(null)
@@ -158,6 +168,8 @@ const VideoModal = ({ open, onClose, videoId, feedView, authenticated, updateCal
         })
       } catch (err) {
         console.error('Error unlinking game:', err)
+      } finally {
+        setGameLinkLoading(false)
       }
     }
   }
@@ -418,6 +430,7 @@ const VideoModal = ({ open, onClose, videoId, feedView, authenticated, updateCal
                           options={gameOptions}
                           getOptionLabel={(option) => option.name || ''}
                           loading={gameSearchLoading}
+                          disabled={gameLinkLoading}
                           renderInput={(params) => (
                             <TextField
                               {...params}
@@ -430,6 +443,31 @@ const VideoModal = ({ open, onClose, videoId, feedView, authenticated, updateCal
                                   <InputAdornment position="start">
                                     <SportsEsportsIcon sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
                                   </InputAdornment>
+                                ),
+                                endAdornment: (
+                                  <>
+                                    {gameLinkLoading && (
+                                      <InputAdornment position="end">
+                                        <Box sx={{ display: 'flex', alignItems: 'center', mr: 1 }}>
+                                          <Box
+                                            sx={{
+                                              width: 20,
+                                              height: 20,
+                                              border: '2px solid rgba(255, 255, 255, 0.3)',
+                                              borderTop: '2px solid #fff',
+                                              borderRadius: '50%',
+                                              animation: 'spin 1s linear infinite',
+                                              '@keyframes spin': {
+                                                '0%': { transform: 'rotate(0deg)' },
+                                                '100%': { transform: 'rotate(360deg)' },
+                                              },
+                                            }}
+                                          />
+                                        </Box>
+                                      </InputAdornment>
+                                    )}
+                                    {params.InputProps.endAdornment}
+                                  </>
                                 ),
                               }}
                             />
@@ -444,6 +482,10 @@ const VideoModal = ({ open, onClose, videoId, feedView, authenticated, updateCal
                             '& .MuiAutocomplete-input, & .MuiAutocomplete-popupIndicator, & .MuiAutocomplete-clearIndicator': {
                               color: '#fff',
                               opacity: 0.7,
+                            },
+                            '& .Mui-disabled': {
+                              WebkitTextFillColor: '#fff !important',
+                              opacity: '0.7 !important',
                             },
                           }}
                         />
