@@ -104,14 +104,28 @@ class GameMetadata(db.Model):
     videos              = db.relationship("VideoGameLink", back_populates="game")
 
     def json(self):
+        from flask import current_app
+
+        # Construct dynamic URLs for assets if steamgriddb_id exists
+        hero_url = None
+        logo_url = None
+        icon_url = None
+
+        if self.steamgriddb_id:
+            domain = f"https://{current_app.config['DOMAIN']}" if current_app.config.get('DOMAIN') else ""
+            # Assume standard .png extension - endpoint handles if missing or different
+            hero_url = f"{domain}/api/game/assets/{self.steamgriddb_id}/hero_1.png"
+            logo_url = f"{domain}/api/game/assets/{self.steamgriddb_id}/logo_1.png"
+            icon_url = f"{domain}/api/game/assets/{self.steamgriddb_id}/icon_1.png"
+
         return {
             "id": self.id,
             "steamgriddb_id": self.steamgriddb_id,
             "name": self.name,
             "release_date": self.release_date,
-            "hero_url": self.hero_url,
-            "logo_url": self.logo_url,
-            "icon_url": self.icon_url,
+            "hero_url": hero_url,
+            "logo_url": logo_url,
+            "icon_url": icon_url,
         }
 
     def __repr__(self):

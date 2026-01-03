@@ -20,7 +20,7 @@ const GameVideos = ({ cardSize, listStyle }) => {
       GameService.getGameVideos(gameId)
     ])
       .then(([gamesRes, videosRes]) => {
-        const foundGame = gamesRes.data.find(g => g.id === parseInt(gameId))
+        const foundGame = gamesRes.data.find(g => g.steamgriddb_id === parseInt(gameId))
         setGame(foundGame)
         setVideos(videosRes.data)
         setLoading(false)

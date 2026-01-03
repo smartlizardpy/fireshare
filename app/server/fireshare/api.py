@@ -638,19 +638,44 @@ def create_game():
     if not data or not data.get('name'):
         return Response(status=400, response='Game name is required.')
 
+    if not data.get('steamgriddb_id'):
+        return Response(status=400, response='SteamGridDB ID is required.')
+
+    # Get API key and initialize client
+    api_key = get_steamgriddb_api_key()
+    if not api_key:
+        return Response(status=503, response='SteamGridDB API key not configured.')
+
+    from .steamgrid import SteamGridDBClient
+    client = SteamGridDBClient(api_key)
+
+    # Download and save assets
+    paths = current_app.config['PATHS']
+    game_assets_dir = paths['data'] / 'game_assets'
+
+    result = client.download_and_save_assets(data['steamgriddb_id'], game_assets_dir)
+
+    if not result['success']:
+        current_app.logger.error(f"Failed to download assets for game {data['name']}: {result['error']}")
+        return Response(
+            status=500,
+            response=f"Failed to download game assets: {result['error']}"
+        )
+
+    # Create game metadata (without URL fields - they will be constructed dynamically)
     game = GameMetadata(
-        steamgriddb_id=data.get('steamgriddb_id'),
+        steamgriddb_id=data['steamgriddb_id'],
         name=data['name'],
         release_date=data.get('release_date'),
-        hero_url=data.get('hero_url'),
-        logo_url=data.get('logo_url'),
-        icon_url=data.get('icon_url'),
+        # Do NOT set hero_url, logo_url, icon_url - they will be constructed dynamically
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow()
     )
 
     db.session.add(game)
     db.session.commit()
+
+    current_app.logger.info(f"Created game {data['name']} with assets: {result['assets']}")
 
     return jsonify(game.json()), 201
 
@@ -705,20 +730,52 @@ def unlink_video_from_game(video_id):
 
     return Response(status=204)
 
-@api.route('/api/games/<int:game_id>/videos', methods=["GET"])
-def get_game_videos(game_id):
-    game = GameMetadata.query.get(game_id)
+@api.route('/api/game/assets/<int:steamgriddb_id>/<filename>')
+def get_game_asset(steamgriddb_id, filename):
+    # Validate filename to prevent path traversal
+    if not re.match(r'^(hero_[12]|logo_1|icon_1)\.(png|jpg|jpeg|webp)$', filename):
+        return Response(status=400, response='Invalid filename.')
+
+    paths = current_app.config['PATHS']
+    asset_path = paths['data'] / 'game_assets' / str(steamgriddb_id) / filename
+
+    if not asset_path.exists():
+        # Try other extensions if the requested one doesn't exist
+        base_name = filename.rsplit('.', 1)[0]
+        asset_dir = paths['data'] / 'game_assets' / str(steamgriddb_id)
+
+        if asset_dir.exists():
+            for ext in ['.png', '.jpg', '.jpeg', '.webp']:
+                alternative_path = asset_dir / f'{base_name}{ext}'
+                if alternative_path.exists():
+                    asset_path = alternative_path
+                    break
+
+    if not asset_path.exists():
+        return Response(status=404, response='Asset not found.')
+
+    # Determine MIME type from extension
+    ext = asset_path.suffix.lower()
+    mime_types = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp'
+    }
+    mime_type = mime_types.get(ext, 'image/png')
+
+    return send_file(asset_path, mimetype=mime_type)
+
+@api.route('/api/games/<int:steamgriddb_id>/videos', methods=["GET"])
+def get_game_videos(steamgriddb_id):
+    game = GameMetadata.query.filter_by(steamgriddb_id=steamgriddb_id).first()
     if not game:
         return Response(status=404, response='Game not found.')
 
-    links = VideoGameLink.query.filter_by(game_id=game_id).all()
-    video_ids = [link.video_id for link in links]
-    videos = Video.query.filter(Video.video_id.in_(video_ids)).all()
-
     videos_json = []
-    for video in videos:
-        vjson = video.json()
-        vjson["view_count"] = VideoView.count(video.video_id)
+    for link in game.videos:
+        vjson = link.video.json()
+        vjson["view_count"] = VideoView.count(link.video_id)
         videos_json.append(vjson)
 
     return jsonify(videos_json)

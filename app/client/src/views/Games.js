@@ -42,7 +42,7 @@ const Games = () => {
     <Box sx={{ p: 3 }}>
       <Grid container spacing={2}>
         {games.map((game) => {
-          const isHovered = hoveredGame === game.id
+          const isHovered = hoveredGame === game.steamgriddb_id
           const heroTransform = isHovered
             ? `translate(${mousePos.x * -15}px, ${mousePos.y * -15}px) scale(1.1)`
             : 'translate(0, 0) scale(1)'
@@ -53,8 +53,8 @@ const Games = () => {
           return (
             <Grid item xs={12} sm={6} md={4} key={game.id}>
               <Box
-                onClick={() => navigate(`/games/${game.id}`)}
-                onMouseMove={(e) => handleMouseMove(e, game.id)}
+                onClick={() => navigate(`/games/${game.steamgriddb_id}`)}
+                onMouseMove={(e) => handleMouseMove(e, game.steamgriddb_id)}
                 onMouseLeave={handleMouseLeave}
                 sx={{
                   position: 'relative',
