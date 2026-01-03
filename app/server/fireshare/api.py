@@ -770,6 +770,34 @@ def get_game_asset(steamgriddb_id, filename):
                     asset_path = alternative_path
                     break
 
+    # If asset still doesn't exist, try to re-download from SteamGridDB
+    if not asset_path.exists():
+        logger.warning(f"{filename} missing for game {steamgriddb_id}")
+        api_key = get_steamgriddb_api_key()
+        if api_key:
+            from .steamgrid import SteamGridDBClient
+            client = SteamGridDBClient(api_key)
+            game_assets_dir = paths['data'] / 'game_assets'
+
+            logger.info(f"Downloading assets for game {steamgriddb_id}")
+            result = client.download_and_save_assets(steamgriddb_id, game_assets_dir)
+
+            if result.get('success'):
+                logger.info(f"Assets downloaded for game {steamgriddb_id}: {result.get('assets')}")
+                # Try to find the file again after re-download
+                base_name = filename.rsplit('.', 1)[0]
+                asset_dir = paths['data'] / 'game_assets' / str(steamgriddb_id)
+                for ext in ['.png', '.jpg', '.jpeg', '.webp']:
+                    alternative_path = asset_dir / f'{base_name}{ext}'
+                    if alternative_path.exists():
+                        asset_path = alternative_path
+                        logger.info(f"Found {alternative_path.name}")
+                        break
+            else:
+                logger.error(f"Download failed for game {steamgriddb_id}: {result.get('error')}")
+        else:
+            logger.warning(f"No API key configured for game {steamgriddb_id}")
+
     if not asset_path.exists():
         return Response(status=404, response='Asset not found.')
 
