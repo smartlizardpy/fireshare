@@ -232,7 +232,7 @@ const CompactVideoCard = ({ video, openVideoHandler, alertHandler, cardWidth, au
           }}
         >
           <div
-            style={{ position: 'relative', cursor: 'pointer' }}
+            style={{ position: 'relative', cursor: 'pointer', display: 'flex' }}
             onClick={() => openVideoHandler(video.video_id)}
             onMouseEnter={debouncedMouseEnter}
             onMouseLeave={handleMouseLeave}
