@@ -33,6 +33,7 @@ const Settings = ({ authenticated }) => {
   const [updatedConfig, setUpdatedConfig] = React.useState({})
   const [updateable, setUpdateable] = React.useState(false)
   const [discordUrl, setDiscordUrl] = React.useState('')
+  const [showSteamGridKey, setShowSteamGridKey] = React.useState(false)
   const isDiscordUsed = discordUrl.trim() !== ''
 
 
@@ -94,11 +95,35 @@ const Settings = ({ authenticated }) => {
           return;
 
       for (const warning of warnings.data) {
-          setAlert({
-              open: true,
-              type: 'warning',
-              message: warning,
-          });
+          // Check if this is the SteamGridDB warning
+          if (warning.includes('SteamGridDB API key not configured')) {
+              setAlert({
+                  open: true,
+                  type: 'warning',
+                  message: (
+                      <span>
+                          {warning.replace('Click here to set it up.', '')}
+                          <a
+                              href="#steamgrid-settings"
+                              onClick={(e) => {
+                                  e.preventDefault();
+                                  document.getElementById('steamgrid-api-key-field')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                  document.getElementById('steamgrid-api-key-field')?.focus();
+                              }}
+                              style={{ color: '#2684FF', textDecoration: 'underline', cursor: 'pointer', marginLeft: '4px' }}
+                          >
+                              Click here to set it up.
+                          </a>
+                      </span>
+                  ),
+              });
+          } else {
+              setAlert({
+                  open: true,
+                  type: 'warning',
+                  message: warning,
+              });
+          }
           await new Promise(r => setTimeout(r, 2000)); //Without this a second Warning would instantly overwrite the first...
       }
   }
@@ -296,6 +321,45 @@ const Settings = ({ authenticated }) => {
                         discord_webhook_url: url,
                       },
                     }))
+                  }}
+                />
+                <TextField
+                  id="steamgrid-api-key-field"
+                  size="small"
+                  label="SteamGridDB API Key"
+                  type={showSteamGridKey ? 'text' : 'password'}
+                  value={updatedConfig.integrations?.steamgriddb_api_key || ''}
+                  helperText={
+                    <span>
+                      Get a free API key at{' '}
+                      <a
+                        href="https://www.steamgriddb.com/profile/preferences/api"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#2684FF', textDecoration: 'none' }}
+                      >
+                        SteamGridDB
+                      </a>
+                    </span>
+                  }
+                  onChange={(e) => {
+                    setUpdatedConfig((prev) => ({
+                      ...prev,
+                      integrations: {
+                        ...prev.integrations,
+                        steamgriddb_api_key: e.target.value,
+                      },
+                    }))
+                  }}
+                  InputProps={{
+                    endAdornment: (
+                      <Box
+                        sx={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                        onClick={() => setShowSteamGridKey(!showSteamGridKey)}
+                      >
+                        {showSteamGridKey ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                      </Box>
+                    ),
                   }}
                 />
                 <Button

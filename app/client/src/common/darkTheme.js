@@ -174,16 +174,16 @@ const theme = {
       },
       styleOverrides: {
         root: {
-          color: '#66B2FF',
+          color: '#a6d2feff',
           fontWeight: 700,
           display: 'inline-flex',
           alignItems: 'center',
           '&:hover': {
-            color: '#99CCF3',
+            color: '#b6dbf7ff',
           },
           '&.MuiTypography-body1 > svg': {
             marginTop: 2,
-          },
+          },  
           '& svg:last-child': {
             marginLeft: 2,
           },
@@ -473,7 +473,7 @@ const theme = {
       main: '#DEA500',
       light: '#FFDC48',
       dark: '#AB6800',
-      contrastText: 'rgba(0, 0, 0, 0.87)',
+      contrastText: 'rgba(255, 255, 255, 0.87)',
     },
     secondary: {
       main: '#ce93d8',

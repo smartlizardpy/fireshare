@@ -19,6 +19,8 @@ class Video(db.Model):
     available = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime())
     updated_at = db.Column(db.DateTime())
+    recorded_at = db.Column(db.DateTime(), nullable=True)  # Extracted from filename
+    source_folder = db.Column(db.String(256), nullable=True)  # Original folder name for game detection
 
     info      = db.relationship("VideoInfo", back_populates="video", uselist=False, lazy="joined")
 
@@ -28,6 +30,7 @@ class Video(db.Model):
             "extension": self.extension,
             "path": self.path,
             "available": self.available,
+            "recorded_at": self.recorded_at.isoformat() if self.recorded_at else None,
             "info": self.info.json(),
         }
         return j
@@ -87,6 +90,70 @@ class VideoInfo(db.Model):
 
     def __repr__(self):
         return "<VideoInfo {} {}>".format(self.video_id, self.title)
+
+class GameMetadata(db.Model):
+    __tablename__ = "game_metadata"
+
+    id                  = db.Column(db.Integer, primary_key=True)
+    steamgriddb_id      = db.Column(db.Integer, index=True, nullable=True)
+    name                = db.Column(db.String(256), index=True, nullable=False)
+    release_date        = db.Column(db.String(64), nullable=True)
+    hero_url            = db.Column(db.String(2048), nullable=True)
+    logo_url            = db.Column(db.String(2048), nullable=True)
+    icon_url            = db.Column(db.String(2048), nullable=True)
+    created_at          = db.Column(db.DateTime())
+    updated_at          = db.Column(db.DateTime())
+
+    videos              = db.relationship("VideoGameLink", back_populates="game")
+
+    def json(self):
+        from flask import current_app
+
+        # Construct dynamic URLs for assets if steamgriddb_id exists
+        hero_url = None
+        logo_url = None
+        icon_url = None
+
+        if self.steamgriddb_id:
+            domain = f"https://{current_app.config['DOMAIN']}" if current_app.config.get('DOMAIN') else ""
+            # Assume standard .png extension - endpoint handles if missing or different
+            hero_url = f"{domain}/api/game/assets/{self.steamgriddb_id}/hero_1.png"
+            logo_url = f"{domain}/api/game/assets/{self.steamgriddb_id}/logo_1.png"
+            icon_url = f"{domain}/api/game/assets/{self.steamgriddb_id}/icon_1.png"
+
+        return {
+            "id": self.id,
+            "steamgriddb_id": self.steamgriddb_id,
+            "name": self.name,
+            "release_date": self.release_date,
+            "hero_url": hero_url,
+            "logo_url": logo_url,
+            "icon_url": icon_url,
+        }
+
+    def __repr__(self):
+        return "<GameMetadata {} {}>".format(self.id, self.name)
+
+class VideoGameLink(db.Model):
+    __tablename__ = "video_game_link"
+
+    id          = db.Column(db.Integer, primary_key=True)
+    video_id    = db.Column(db.String(32), db.ForeignKey("video.video_id"), nullable=False)
+    game_id     = db.Column(db.Integer, db.ForeignKey("game_metadata.id"), nullable=False)
+    created_at  = db.Column(db.DateTime())
+
+    video       = db.relationship("Video")
+    game        = db.relationship("GameMetadata", back_populates="videos")
+
+    def json(self):
+        return {
+            "video_id": self.video_id,
+            "game_id": self.game_id,
+            "game": self.game.json() if self.game else None,
+        }
+
+    def __repr__(self):
+        return "<VideoGameLink video:{} game:{}>".format(self.video_id, self.game_id)
 
 class VideoView(db.Model):
     __tablename__ = "video_view"

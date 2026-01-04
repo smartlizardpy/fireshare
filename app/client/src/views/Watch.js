@@ -191,8 +191,23 @@ const Watch = ({ authenticated }) => {
         <meta property="og:video:height" value={details?.info?.height} />
         <meta property="og:site_name" value="Fireshare" />
       </Helmet>
-      <Grid container sx={{ gap: '6px' }}>
-        <Grid item xs={12}>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          maxHeight: 'calc(100vh - 64px)',
+          overflow: 'hidden',
+        }}
+      >
+        <Box
+          sx={{
+            width: '100%',
+            maxWidth: 'calc((100vh - 64px - 120px) * 16 / 9)',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
           <VideoJSPlayer
             sources={getVideoSources(id, details?.info, details?.extension || '.mp4')}
             poster={getPosterUrl()}
@@ -205,9 +220,7 @@ const Watch = ({ authenticated }) => {
             startTime={time ? parseFloat(time) : 0}
             style={{ backgroundColor: '#000' }}
           />
-        </Grid>
-        <Grid item xs={12}>
-          <Paper width="100%" square sx={{ p: 1, mt: '-6px', background: 'rgba(0, 0, 0, 0.1)' }}>
+          <Paper width="100%" square sx={{ p: 1, background: 'rgba(0, 0, 0, 0.1)' }}>
             <Box sx={{ display: { xs: 'none', sm: 'flex' }, mr: 1 }}>
               <Grid container spacing={1}>
                 <Grid item xs={12}>
@@ -237,8 +250,8 @@ const Watch = ({ authenticated }) => {
               </Grid>
             </Box>
           </Paper>
-        </Grid>
-      </Grid>
+        </Box>
+      </Box>
     </>
   )
 }

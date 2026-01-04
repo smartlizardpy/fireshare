@@ -15,6 +15,9 @@ const VideoCards = ({
   fetchVideos,
   authenticated,
   size,
+  editMode = false,
+  selectedVideos = new Set(),
+  onVideoSelect = () => {},
 }) => {
   const [vids, setVideos] = React.useState(videos)
   const [alert, setAlert] = React.useState({ open: false })
@@ -165,6 +168,9 @@ const VideoCards = ({
               cardWidth={size}
               authenticated={authenticated}
               deleted={handleDelete}
+              editMode={editMode}
+              isSelected={selectedVideos.has(v.video_id)}
+              onSelect={onVideoSelect}
             />
           ))}
         </Grid>

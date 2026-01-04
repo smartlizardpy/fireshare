@@ -8,6 +8,8 @@ import Dashboard from './views/Dashboard'
 import NotFound from './views/NotFound'
 import Settings from './views/Settings'
 import Feed from './views/Feed'
+import Games from './views/Games'
+import GameVideos from './views/GameVideos'
 import darkTheme from './common/darkTheme'
 import { ConfigService } from './services'
 import { getSetting, setSetting } from './common/utils'
@@ -69,6 +71,26 @@ export default function App() {
               <AuthWrapper collapsed={!drawerOpen} redirect={'/login'}>
                 <Navbar20 page="/settings">
                   <Settings />
+                </Navbar20>
+              </AuthWrapper>
+            }
+          />
+          <Route
+            path="/games"
+            element={
+              <AuthWrapper>
+                <Navbar20 page="/games" collapsed={!drawerOpen} searchable>
+                  <Games />
+                </Navbar20>
+              </AuthWrapper>
+            }
+          />
+          <Route
+            path="/games/:gameId"
+            element={
+              <AuthWrapper>
+                <Navbar20 page="/games" collapsed={!drawerOpen} styleToggle cardSlider searchable>
+                  <GameVideos />
                 </Navbar20>
               </AuthWrapper>
             }
