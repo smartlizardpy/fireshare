@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Autocomplete, Box, Button, ButtonGroup, Grid, IconButton, InputAdornment, Modal, Paper, Slide, TextField } from '@mui/material'
+import { Box, Button, ButtonGroup, Grid, IconButton, InputAdornment, Modal, Paper, Slide, TextField } from '@mui/material'
 import LinkIcon from '@mui/icons-material/Link'
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
 import ShuffleIcon from '@mui/icons-material/Shuffle'
@@ -13,6 +13,7 @@ import { copyToClipboard, getPublicWatchUrl, getServedBy, getUrl, getVideoSource
 import { ConfigService, VideoService, GameService } from '../../services'
 import SnackbarAlert from '../alert/SnackbarAlert'
 import VideoJSPlayer from '../misc/VideoJSPlayer'
+import GameSearch from '../game/GameSearch'
 
 const URL = getUrl()
 const PURL = getPublicWatchUrl()
@@ -28,9 +29,6 @@ const VideoModal = ({ open, onClose, videoId, feedView, authenticated, updateCal
   const [alert, setAlert] = React.useState({ open: false })
   const [autoplay, setAutoplay] = useState(false)
   const [selectedGame, setSelectedGame] = React.useState(null)
-  const [gameOptions, setGameOptions] = React.useState([])
-  const [gameSearchLoading, setGameSearchLoading] = React.useState(false)
-  const [gameLinkLoading, setGameLinkLoading] = React.useState(false)
 
   const playerRef = React.useRef()
 
@@ -100,77 +98,41 @@ const VideoModal = ({ open, onClose, videoId, feedView, authenticated, updateCal
     }
   }, [videoId])
 
-  const searchGames = async (query) => {
-    if (!query || query.length < 2) return setGameOptions([])
-    setGameSearchLoading(true)
+  const handleGameLinked = async (game) => {
     try {
-      setGameOptions((await GameService.searchSteamGrid(query)).data || [])
+      await GameService.linkVideoToGame(vid.video_id, game.id)
+      setSelectedGame(game)
+      setAlert({
+        type: 'success',
+        message: `Linked to ${game.name}`,
+        open: true,
+      })
     } catch (err) {
-      setGameOptions([])
+      console.error('Error linking game:', err)
+      setAlert({
+        type: 'error',
+        message: 'Failed to link game',
+        open: true,
+      })
     }
-    setGameSearchLoading(false)
   }
 
-  const handleGameChange = async (event, newValue) => {
-    if (!authenticated) return
-
-    if (newValue) {
-      // Set the selected game immediately so it stays visible during loading
-      setSelectedGame(newValue)
-      setGameLinkLoading(true)
-      try {
-        const allGames = (await GameService.getGames()).data
-        let game = allGames.find(g => g.steamgriddb_id === newValue.id)
-
-        if (!game) {
-          const assets = (await GameService.getGameAssets(newValue.id)).data
-          const gameData = {
-            steamgriddb_id: newValue.id,
-            name: newValue.name,
-            release_date: newValue.release_date ? new Date(newValue.release_date * 1000).toISOString().split('T')[0] : null,
-            hero_url: assets.hero_url,
-            logo_url: assets.logo_url,
-            icon_url: assets.icon_url,
-          }
-          game = (await GameService.createGame(gameData)).data
-        }
-
-        await GameService.linkVideoToGame(vid.video_id, game.id)
-
-        // Update with the full game object from the database
-        setSelectedGame(game)
-        setAlert({
-          type: 'success',
-          message: `Linked to ${newValue.name}`,
-          open: true,
-        })
-      } catch (err) {
-        console.error('Error linking game:', err)
-        // Revert selection on error
-        setSelectedGame(null)
-        setAlert({
-          type: 'error',
-          message: 'Failed to link game',
-          open: true,
-        })
-      } finally {
-        setGameLinkLoading(false)
-      }
-    } else {
-      setGameLinkLoading(true)
-      try {
-        await GameService.unlinkVideoFromGame(vid.video_id)
-        setSelectedGame(null)
-        setAlert({
-          type: 'info',
-          message: 'Game link removed',
-          open: true,
-        })
-      } catch (err) {
-        console.error('Error unlinking game:', err)
-      } finally {
-        setGameLinkLoading(false)
-      }
+  const handleUnlinkGame = async () => {
+    try {
+      await GameService.unlinkVideoFromGame(vid.video_id)
+      setSelectedGame(null)
+      setAlert({
+        type: 'info',
+        message: 'Game link removed',
+        open: true,
+      })
+    } catch (err) {
+      console.error('Error unlinking game:', err)
+      setAlert({
+        type: 'error',
+        message: 'Failed to unlink game',
+        open: true,
+      })
     }
   }
 
@@ -420,75 +382,58 @@ const VideoModal = ({ open, onClose, videoId, feedView, authenticated, updateCal
                         />
                       </Paper>
                     )}
-                    {/* Game ID search bar */}
+                    {/* Game linking */}
                     {authenticated && (
                       <Paper sx={{ mt: 1, background: 'rgba(50, 50, 50, 0.9)' }}>
-                        <Autocomplete
-                          value={selectedGame}
-                          onChange={handleGameChange}
-                          onInputChange={(_, val) => searchGames(val)}
-                          options={gameOptions}
-                          getOptionLabel={(option) => option.name || ''}
-                          loading={gameSearchLoading}
-                          disabled={gameLinkLoading}
-                          renderInput={(params) => (
-                            <TextField
-                              {...params}
-                              placeholder="Search for a game..."
+                        {selectedGame ? (
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              height: 40,
+                              pl: 1.75,
+                              pr: 0.5,
+                            }}
+                          >
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <SportsEsportsIcon sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
+                              <Box
+                                component="span"
+                                sx={{
+                                  color: 'rgba(255, 255, 255, 0.7)',
+                                  fontSize: '0.875rem',
+                                }}
+                              >
+                                {selectedGame.name}
+                              </Box>
+                            </Box>
+                            <IconButton
+                              onClick={handleUnlinkGame}
                               size="small"
-                              sx={{ '& .MuiOutlinedInput-notchedOutline': { border: 'none' } }}
-                              InputProps={{
-                                ...params.InputProps,
-                                startAdornment: (
-                                  <InputAdornment position="start">
-                                    <SportsEsportsIcon sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
-                                  </InputAdornment>
-                                ),
-                                endAdornment: (
-                                  <>
-                                    {gameLinkLoading && (
-                                      <InputAdornment position="end">
-                                        <Box sx={{ display: 'flex', alignItems: 'center', mr: 1 }}>
-                                          <Box
-                                            sx={{
-                                              width: 20,
-                                              height: 20,
-                                              border: '2px solid rgba(255, 255, 255, 0.3)',
-                                              borderTop: '2px solid #fff',
-                                              borderRadius: '50%',
-                                              animation: 'spin 1s linear infinite',
-                                              '@keyframes spin': {
-                                                '0%': { transform: 'rotate(0deg)' },
-                                                '100%': { transform: 'rotate(360deg)' },
-                                              },
-                                            }}
-                                          />
-                                        </Box>
-                                      </InputAdornment>
-                                    )}
-                                    {params.InputProps.endAdornment}
-                                  </>
-                                ),
+                              sx={{
+                                color: 'rgba(255, 255, 255, 0.5)',
+                                '&:hover': {
+                                  color: 'rgba(255, 255, 255, 0.9)',
+                                },
                               }}
-                            />
-                          )}
-                          renderOption={(props, option) => (
-                            <li {...props} key={option.id}>
-                              {option.name}
-                              {option.release_date && ` (${new Date(option.release_date * 1000).getFullYear()})`}
-                            </li>
-                          )}
-                          sx={{
-                            '& .MuiAutocomplete-input, & .MuiAutocomplete-popupIndicator, & .MuiAutocomplete-clearIndicator': {
-                              color: '#fff',
-                              opacity: 0.7,
-                            },
-                            '& .Mui-disabled': {
-                              WebkitTextFillColor: '#fff !important',
-                              opacity: '0.7 !important',
-                            },
-                          }}
-                        />
+                            >
+                              <CloseIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        ) : (
+                          <GameSearch
+                            onGameLinked={handleGameLinked}
+                            onError={(err) =>
+                              setAlert({
+                                open: true,
+                                type: 'error',
+                                message: err.response?.data || 'Error linking game',
+                              })
+                            }
+                            placeholder="Search for a game..."
+                          />
+                        )}
                       </Paper>
                     )}
                   </Grid>

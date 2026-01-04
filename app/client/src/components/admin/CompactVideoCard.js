@@ -1,5 +1,5 @@
 import React from 'react'
-import { Button, ButtonGroup, Grid, IconButton, InputBase, Typography, Box } from '@mui/material'
+import { Button, ButtonGroup, Grid, IconButton, InputBase, Typography, Box, Checkbox } from '@mui/material'
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff'
 import VisibilityIcon from '@mui/icons-material/Visibility'
 import EditIcon from '@mui/icons-material/Edit'
@@ -15,7 +15,17 @@ const URL = getUrl()
 const PURL = getPublicWatchUrl()
 const SERVED_BY = getServedBy()
 
-const CompactVideoCard = ({ video, openVideoHandler, alertHandler, cardWidth, authenticated, deleted }) => {
+const CompactVideoCard = ({
+  video,
+  openVideoHandler,
+  alertHandler,
+  cardWidth,
+  authenticated,
+  deleted,
+  editMode = false,
+  isSelected = false,
+  onSelect = () => {},
+}) => {
   const [intVideo, setIntVideo] = React.useState(video)
   const [videoId, setVideoId] = React.useState(video.video_id)
   const [title, setTitle] = React.useState(video.info?.title)
@@ -144,6 +154,10 @@ const CompactVideoCard = ({ video, openVideoHandler, alertHandler, cardWidth, au
           width: '100%',
           bgcolor: 'rgba(0, 0, 0, 0)',
           lineHeight: 0,
+          border: isSelected ? '3px solid' : '3px solid transparent',
+          borderColor: isSelected ? 'primary.main' : 'transparent',
+          borderRadius: '6px',
+          transition: 'border 0.3s ease',
         }}
       >
         <ButtonGroup
@@ -233,11 +247,33 @@ const CompactVideoCard = ({ video, openVideoHandler, alertHandler, cardWidth, au
         >
           <div
             style={{ position: 'relative', cursor: 'pointer' }}
-            onClick={() => openVideoHandler(video.video_id)}
+            onClick={() => (editMode ? onSelect(video.video_id) : openVideoHandler(video.video_id))}
             onMouseEnter={debouncedMouseEnter}
             onMouseLeave={handleMouseLeave}
             onMouseDown={handleMouseDown}
           >
+            {/* Checkbox for edit mode */}
+            {editMode && (
+              <Checkbox
+                checked={isSelected}
+                onChange={(e) => {
+                  e.stopPropagation()
+                  onSelect(video.video_id)
+                }}
+                sx={{
+                  position: 'absolute',
+                  top: 8,
+                  left: 8,
+                  zIndex: 2,
+                  color: 'white',
+                  bgcolor: 'rgba(0, 0, 0, 0.5)',
+                  borderRadius: '4px',
+                  '&.Mui-checked': {
+                    color: 'primary.main',
+                  },
+                }}
+              />
+            )}
             {!video.available && (
               <Box
                 sx={{ position: 'absolute', top: 0, left: 0, background: '#FF000060', width: '100%', height: '100%' }}

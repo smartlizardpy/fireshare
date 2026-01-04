@@ -136,9 +136,8 @@ const Games = ({ authenticated }) => {
             sx={{
               bgcolor: editMode ? 'primary.main' : 'rgba(255, 255, 255, 0.1)',
               borderRadius: '8px',
-              width: '36.5px',
-              height: '36.5px',
-              padding: '8px',
+              width: '40px',
+              height: '40px',
               '&:hover': {
                 bgcolor: editMode ? 'primary.dark' : 'rgba(255, 255, 255, 0.2)',
               },
