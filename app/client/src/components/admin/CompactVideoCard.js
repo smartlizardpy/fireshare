@@ -246,7 +246,7 @@ const CompactVideoCard = ({
           }}
         >
           <div
-            style={{ position: 'relative', cursor: 'pointer' }}
+            style={{ position: 'relative', cursor: 'pointer', display: 'flex' }}
             onClick={() => (editMode ? onSelect(video.video_id) : openVideoHandler(video.video_id))}
             onMouseEnter={debouncedMouseEnter}
             onMouseLeave={handleMouseLeave}
