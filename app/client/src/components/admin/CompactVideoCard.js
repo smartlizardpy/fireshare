@@ -308,6 +308,7 @@ const CompactVideoCard = ({
                 borderBottomLeftRadius: '6px',
                 borderTop: 'none',
                 background: 'repeating-linear-gradient(45deg,#606dbc,#606dbc 10px,#465298 10px,#465298 20px)',
+                overflow: 'hidden'
               }}
             />
 
@@ -328,6 +329,7 @@ const CompactVideoCard = ({
                   borderBottomRightRadius: '6px',
                   borderBottomLeftRadius: '6px',
                   borderTop: 'none',
+                  overflow: 'hidden'
                 }}
                 width={cardWidth}
                 height={previewVideoHeight}
