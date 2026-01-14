@@ -398,7 +398,7 @@ const Settings = ({ authenticated }) => {
                 Scan Library
               </Button>
               <Button variant="contained" startIcon={<SportsEsportsIcon />} onClick={handleScanGames}>
-                Scan for Games
+                Start Manual Scan for Missing Games
               </Button>
             </Box>
           </Grid>
