@@ -116,6 +116,12 @@ const service = {
   scan() {
     return Api().get('/api/manual/scan')
   },
+  getGameSuggestion(videoId) {
+    return Api().get(`/api/videos/${videoId}/game/suggestion`)
+  },
+  rejectGameSuggestion(videoId) {
+    return Api().delete(`/api/videos/${videoId}/game/suggestion`)
+  },
 }
 
 export default service

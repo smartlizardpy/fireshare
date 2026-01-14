@@ -914,6 +914,35 @@ def delete_game(steamgriddb_id):
     logger.info(f"Successfully deleted game {game.name}")
     return Response(status=200)
 
+@api.route('/api/videos/<video_id>/game/suggestion', methods=["GET"])
+def get_video_game_suggestion(video_id):
+    """Get automatic game detection suggestion for a video"""
+    from fireshare.cli import get_game_suggestion
+
+    suggestion = get_game_suggestion(video_id)
+    if not suggestion:
+        return jsonify(None)
+
+    return jsonify({
+        'video_id': video_id,
+        'game_id': suggestion.get('game_id'),
+        'game_name': suggestion.get('game_name'),
+        'steamgriddb_id': suggestion.get('steamgriddb_id'),
+        'confidence': suggestion.get('confidence'),
+        'source': suggestion.get('source')
+    })
+
+@api.route('/api/videos/<video_id>/game/suggestion', methods=["DELETE"])
+@login_required
+def reject_game_suggestion(video_id):
+    """User rejected the game suggestion - remove from storage"""
+    from fireshare.cli import delete_game_suggestion
+
+    if delete_game_suggestion(video_id):
+        logger.info(f"User rejected game suggestion for video {video_id}")
+
+    return Response(status=204)
+
 @api.after_request
 def after_request(response):
     response.headers.add('Accept-Ranges', 'bytes')
