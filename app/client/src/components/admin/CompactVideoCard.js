@@ -10,6 +10,7 @@ import VideoService from '../../services/VideoService'
 import _ from 'lodash'
 import UpdateDetailsModal from '../modal/UpdateDetailsModal'
 import LightTooltip from '../misc/LightTooltip'
+import GameDetectionCard from '../game/GameDetectionCard'
 
 const URL = getUrl()
 const PURL = getPublicWatchUrl()
@@ -36,6 +37,8 @@ const CompactVideoCard = ({
   const [privateView, setPrivateView] = React.useState(video.info?.private)
 
   const [detailsModalOpen, setDetailsModalOpen] = React.useState(false)
+  const [gameSuggestion, setGameSuggestion] = React.useState(null)
+  const [showSuggestion, setShowSuggestion] = React.useState(true)
 
   const previousVideoRef = React.useRef()
   const previousVideo = previousVideoRef.current
@@ -50,6 +53,25 @@ const CompactVideoCard = ({
   React.useEffect(() => {
     previousVideoRef.current = video
   })
+
+  React.useEffect(() => {
+    // Fetch game suggestion when component mounts
+    VideoService.getGameSuggestion(video.video_id)
+      .then((response) => {
+        if (response.data) {
+          setGameSuggestion(response.data)
+          setShowSuggestion(true)
+        }
+      })
+      .catch(() => {
+        // No suggestion or error - that's fine
+      })
+  }, [video.video_id])
+
+  const handleSuggestionComplete = () => {
+    setShowSuggestion(false)
+    setGameSuggestion(null)
+  }
 
   const debouncedMouseEnter = React.useRef(
     _.debounce(() => {
@@ -304,8 +326,8 @@ const CompactVideoCard = ({
                 width: cardWidth,
                 minHeight: previewVideoHeight,
                 border: '1px solid #3399FFAE',
-                borderBottomRightRadius: '6px',
-                borderBottomLeftRadius: '6px',
+                borderBottomRightRadius: (authenticated && gameSuggestion && showSuggestion && !editMode) ? 0 : '6px',
+                borderBottomLeftRadius: (authenticated && gameSuggestion && showSuggestion && !editMode) ? 0 : '6px',
                 borderTop: 'none',
                 background: 'repeating-linear-gradient(45deg,#606dbc,#606dbc 10px,#465298 10px,#465298 20px)',
                 overflow: 'hidden'
@@ -326,8 +348,8 @@ const CompactVideoCard = ({
                   WebkitAnimationDuration: '1.5s',
                   WebkitAnimationFillMode: 'both',
                   border: '1px solid #3399FFAE',
-                  borderBottomRightRadius: '6px',
-                  borderBottomLeftRadius: '6px',
+                  borderBottomRightRadius: (authenticated && gameSuggestion && showSuggestion && !editMode) ? 0 : '6px',
+                  borderBottomLeftRadius: (authenticated && gameSuggestion && showSuggestion && !editMode) ? 0 : '6px',
                   borderTop: 'none',
                   overflow: 'hidden'
                 }}
@@ -398,6 +420,16 @@ const CompactVideoCard = ({
             </Box>
           </div>
         </Box>
+
+        {/* Game Detection Suggestion Card */}
+        {authenticated && gameSuggestion && showSuggestion && !editMode && (
+          <GameDetectionCard
+            videoId={video.video_id}
+            suggestion={gameSuggestion}
+            onComplete={handleSuggestionComplete}
+            cardWidth={cardWidth}
+          />
+        )}
       </Box>
     </>
   )

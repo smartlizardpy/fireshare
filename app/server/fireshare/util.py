@@ -583,3 +583,89 @@ def seconds_to_dur_string(sec):
         return ':'.join([str(hours), str(mins).zfill(2), str(s).zfill(2)])
     else:
         return ':'.join([str(mins), str(s).zfill(2)])
+
+def detect_game_from_filename(filename: str, steamgriddb_api_key: str = None):
+    """
+    Fuzzy match a video filename against existing games in database using RapidFuzz.
+    Falls back to SteamGridDB search if no local match found.
+
+    Args:
+        filename: Video filename without extension
+        steamgriddb_api_key: Optional API key for SteamGridDB fallback
+
+    Returns:
+        dict with 'game_id', 'game_name', 'steamgriddb_id', 'confidence', 'source' or None
+    """
+    from rapidfuzz import fuzz, process
+    from fireshare.models import GameMetadata
+    import re
+
+    # Clean filename for better matching
+    clean_name = filename.lower()
+    # Remove common patterns: dates, numbers, "gameplay", etc.
+    clean_name = re.sub(r'\d{4}-\d{2}-\d{2}', '', clean_name)  # Remove dates like 2024-01-14
+    clean_name = re.sub(r'\d{8}', '', clean_name)  # Remove YYYYMMDD format
+    clean_name = re.sub(r'\b(gameplay|clip|highlights?|match|game|recording|video)\b', '', clean_name, flags=re.IGNORECASE)
+    clean_name = re.sub(r'[_\-]+', ' ', clean_name)  # Replace _ and - with spaces
+    clean_name = re.sub(r'\s+', ' ', clean_name)  # Normalize whitespace
+    clean_name = clean_name.strip()
+
+    if not clean_name:
+        logger.debug("Filename cleaned to empty string, cannot detect game")
+        return None
+
+    # Step 1: Try local database first
+    games = GameMetadata.query.all()
+
+    if not games:
+        logger.debug("No games in database to match against")
+    else:
+        # Create list of (game_name, game_object) tuples for rapidfuzz
+        game_choices = [(game.name, game) for game in games]
+
+        # Use token_set_ratio - ignores word order and extra words
+        result = process.extractOne(
+            clean_name,
+            game_choices,
+            scorer=fuzz.token_set_ratio,
+            score_cutoff=65  # Minimum confidence (0-100 scale)
+        )
+
+        if result:
+            matched_name, score, matched_game = result[0], result[1], result[2]
+            best_match = {
+                'game_id': matched_game.id,
+                'game_name': matched_game.name,
+                'steamgriddb_id': matched_game.steamgriddb_id,
+                'confidence': score / 100,  # Convert to 0-1 scale
+                'source': 'local'
+            }
+            logger.info(f"Local game match: {best_match['game_name']} (confidence: {score:.0f}%)")
+            return best_match
+
+    # Step 2: Fallback to SteamGridDB search
+    if steamgriddb_api_key:
+        logger.info(f"No local match found, searching SteamGridDB for: '{clean_name}'")
+        from fireshare.steamgrid import SteamGridDBClient
+        client = SteamGridDBClient(steamgriddb_api_key)
+
+        try:
+            results = client.search_games(clean_name)
+            if results and len(results) > 0:
+                # Take the first result (SteamGridDB returns best matches first)
+                top_result = results[0]
+                detected = {
+                    'game_id': None,  # Not in our DB yet
+                    'game_name': top_result.get('name'),
+                    'steamgriddb_id': top_result.get('id'),
+                    'confidence': 0.75,  # Assume SteamGridDB results are good
+                    'source': 'steamgriddb',
+                    'release_date': top_result.get('release_date')
+                }
+                logger.info(f"SteamGridDB match: {detected['game_name']} (id: {detected['steamgriddb_id']})")
+                return detected
+        except Exception as ex:
+            logger.warning(f"SteamGridDB search failed: {ex}")
+
+    logger.debug(f"No game match found for filename: '{clean_name}'")
+    return None

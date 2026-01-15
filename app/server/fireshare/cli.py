@@ -15,6 +15,54 @@ import re
 
 from .constants import SUPPORTED_FILE_EXTENSIONS
 
+# Helper functions for persistent game suggestions storage
+def _get_suggestions_file():
+    """Get path to the suggestions JSON file"""
+    from flask import current_app
+    data_dir = Path(current_app.config.get('DATA_DIRECTORY', '/data'))
+    return data_dir / 'game_suggestions.json'
+
+def _load_suggestions():
+    """Load suggestions from JSON file"""
+    suggestions_file = _get_suggestions_file()
+    if suggestions_file.exists():
+        try:
+            with open(suggestions_file, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return {}
+    return {}
+
+def _save_suggestions(suggestions):
+    """Save suggestions to JSON file"""
+    suggestions_file = _get_suggestions_file()
+    suggestions_file.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with open(suggestions_file, 'w') as f:
+            json.dump(suggestions, f)
+    except IOError as e:
+        logger.error(f"Failed to save game suggestions: {e}")
+
+def get_game_suggestion(video_id):
+    """Get a game suggestion for a video"""
+    suggestions = _load_suggestions()
+    return suggestions.get(video_id)
+
+def save_game_suggestion(video_id, suggestion):
+    """Save a game suggestion for a video"""
+    suggestions = _load_suggestions()
+    suggestions[video_id] = suggestion
+    _save_suggestions(suggestions)
+
+def delete_game_suggestion(video_id):
+    """Delete a game suggestion for a video"""
+    suggestions = _load_suggestions()
+    if video_id in suggestions:
+        del suggestions[video_id]
+        _save_suggestions(suggestions)
+        return True
+    return False
+
 def send_discord_webhook(webhook_url=None, video_url=None):
     payload = {
         "content": video_url,
@@ -248,6 +296,18 @@ def scan_video(ctx, path):
                 info = VideoInfo(video_id=v.video_id, title=Path(v.path).stem, private=video_config["private"])
                 db.session.add(info)
                 db.session.commit()
+
+                # Automatic game detection
+                logger.info("Attempting automatic game detection...")
+                steamgriddb_api_key = config.get("integrations", {}).get("steamgriddb_api_key")
+                filename = Path(v.path).stem
+                detected_game = util.detect_game_from_filename(filename, steamgriddb_api_key)
+
+                if detected_game and detected_game['confidence'] >= 0.65:
+                    save_game_suggestion(v.video_id, detected_game)
+                    logger.info(f"Created game suggestion for video {v.video_id}: {detected_game['game_name']} (confidence: {detected_game['confidence']:.2f}, source: {detected_game['source']})")
+                else:
+                    logger.info(f"No confident game match found for video {v.video_id}")
 
                 logger.info("Syncing metadata")
                 ctx.invoke(sync_metadata, video=video_id)

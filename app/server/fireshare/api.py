@@ -19,6 +19,12 @@ from .models import Video, VideoInfo, VideoView, GameMetadata, VideoGameLink
 from .constants import SUPPORTED_FILE_TYPES
 from datetime import datetime
 
+def add_cache_headers(response, cache_key, max_age=604800):
+    """Add cache headers for static assets (default: 7 days)."""
+    response.headers['Cache-Control'] = f'public, max-age={max_age}, must-revalidate'
+    response.headers['ETag'] = f'"{cache_key}"'
+    return response
+
 templates_path = os.environ.get('TEMPLATE_PATH') or 'templates'
 api = Blueprint('api', __name__, template_folder=templates_path)
 
@@ -135,6 +141,52 @@ def manual_scan():
         current_app.logger.info(f"Executed manual scan")
         Popen(["fireshare", "bulk-import"], shell=False)
     return Response(status=200)
+
+@api.route('/api/manual/scan-games')
+@login_required
+def manual_scan_games():
+    """Scan all videos for game detection and create suggestions"""
+    from fireshare import util
+    from fireshare.cli import save_game_suggestion, _load_suggestions
+
+    try:
+        steamgriddb_api_key = get_steamgriddb_api_key()
+
+        # Get all videos
+        videos = Video.query.join(VideoInfo).all()
+        suggestions_created = 0
+
+        # Load existing suggestions to avoid duplicates
+        existing_suggestions = _load_suggestions()
+
+        for video in videos:
+            # Skip if already has a game linked
+            existing_link = VideoGameLink.query.filter_by(video_id=video.video_id).first()
+            if existing_link:
+                continue
+
+            # Skip if already has a suggestion
+            if video.video_id in existing_suggestions:
+                continue
+
+            # Try to detect game from filename
+            filename = Path(video.path).stem
+            detected_game = util.detect_game_from_filename(filename, steamgriddb_api_key)
+
+            if detected_game and detected_game['confidence'] >= 0.65:
+                save_game_suggestion(video.video_id, detected_game)
+                suggestions_created += 1
+                logger.info(f"Created game suggestion for video {video.video_id}: {detected_game['game_name']}")
+
+        return jsonify({
+            'success': True,
+            'total_videos': len(videos),
+            'suggestions_created': suggestions_created
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error scanning videos for games: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @api.route('/api/videos')
 @login_required
@@ -291,10 +343,13 @@ def get_video_poster():
     video_id = request.args['id']
     webm_poster_path = Path(current_app.config["PROCESSED_DIRECTORY"], "derived", video_id, "boomerang-preview.webm")
     jpg_poster_path = Path(current_app.config["PROCESSED_DIRECTORY"], "derived", video_id, "poster.jpg")
+
     if request.args.get('animated'):
-        return send_file(webm_poster_path, mimetype='video/webm')
+        response = send_file(webm_poster_path, mimetype='video/webm')
     else:
-        return send_file(jpg_poster_path, mimetype='image/jpg')
+        response = send_file(jpg_poster_path, mimetype='image/jpg')
+
+    return add_cache_headers(response, video_id)
 
 @api.route('/api/video/view', methods=['POST'])
 def add_video_view():
@@ -660,6 +715,20 @@ def create_game():
     if not data.get('steamgriddb_id'):
         return Response(status=400, response='SteamGridDB ID is required.')
 
+    existing_game = GameMetadata.query.filter_by(steamgriddb_id=data['steamgriddb_id']).first()
+    if existing_game:
+        updated = False
+        if data.get('name') and data['name'] != existing_game.name:
+            existing_game.name = data['name']
+            updated = True
+        if data.get('release_date') and data.get('release_date') != existing_game.release_date:
+            existing_game.release_date = data['release_date']
+            updated = True
+        if updated:
+            existing_game.updated_at = datetime.utcnow()
+            db.session.commit()
+        return jsonify(existing_game.json()), 200
+
     # Get API key and initialize client
     api_key = get_steamgriddb_api_key()
     if not api_key:
@@ -811,7 +880,8 @@ def get_game_asset(steamgriddb_id, filename):
     }
     mime_type = mime_types.get(ext, 'image/png')
 
-    return send_file(asset_path, mimetype=mime_type)
+    response = send_file(asset_path, mimetype=mime_type)
+    return add_cache_headers(response, f"{steamgriddb_id}-{filename}")
 
 @api.route('/api/games/<int:steamgriddb_id>/videos', methods=["GET"])
 def get_game_videos(steamgriddb_id):
@@ -866,6 +936,8 @@ def delete_game(steamgriddb_id):
             derived_path = paths['processed'] / 'derived' / video.video_id
 
             # Delete from database
+            VideoGameLink.query.filter_by(video_id=video.video_id).delete()
+            VideoView.query.filter_by(video_id=video.video_id).delete()
             VideoInfo.query.filter_by(video_id=video.video_id).delete()
             Video.query.filter_by(video_id=video.video_id).delete()
 
@@ -903,6 +975,35 @@ def delete_game(steamgriddb_id):
 
     logger.info(f"Successfully deleted game {game.name}")
     return Response(status=200)
+
+@api.route('/api/videos/<video_id>/game/suggestion', methods=["GET"])
+def get_video_game_suggestion(video_id):
+    """Get automatic game detection suggestion for a video"""
+    from fireshare.cli import get_game_suggestion
+
+    suggestion = get_game_suggestion(video_id)
+    if not suggestion:
+        return jsonify(None)
+
+    return jsonify({
+        'video_id': video_id,
+        'game_id': suggestion.get('game_id'),
+        'game_name': suggestion.get('game_name'),
+        'steamgriddb_id': suggestion.get('steamgriddb_id'),
+        'confidence': suggestion.get('confidence'),
+        'source': suggestion.get('source')
+    })
+
+@api.route('/api/videos/<video_id>/game/suggestion', methods=["DELETE"])
+@login_required
+def reject_game_suggestion(video_id):
+    """User rejected the game suggestion - remove from storage"""
+    from fireshare.cli import delete_game_suggestion
+
+    if delete_game_suggestion(video_id):
+        logger.info(f"User rejected game suggestion for video {video_id}")
+
+    return Response(status=204)
 
 @api.after_request
 def after_request(response):

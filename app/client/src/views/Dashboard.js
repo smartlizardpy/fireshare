@@ -396,13 +396,10 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
 
       {/* Link to Game Dialog */}
       <Dialog open={linkGameDialogOpen} onClose={handleLinkGameCancel} maxWidth="sm" fullWidth>
-        <DialogTitle>Link Videos to Game</DialogTitle>
-        <DialogContent>
+        <DialogTitle>Link {selectedVideos.size} Clip{selectedVideos.size !== 1 ? 's' : ''} to Game</DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
           {!showAddNewGame ? (
             <>
-              <Typography sx={{ mb: 2 }}>
-                Select a game to link {selectedVideos.size} video{selectedVideos.size > 1 ? 's' : ''} to:
-              </Typography>
               <Autocomplete
                 options={[...games, { id: 'add-new', name: 'Add a new game...', isAddNew: true }]}
                 getOptionLabel={(option) => option.name || ''}
@@ -415,7 +412,7 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
                     setSelectedGame(newValue)
                   }
                 }}
-                renderInput={(params) => <TextField {...params} label="Select Game" />}
+                renderInput={(params) => <TextField {...params} placeholder="Select a game..." />}
                 renderOption={(props, option) => (
                   <Box
                     component="li"
@@ -438,9 +435,6 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
             </>
           ) : (
             <>
-              <Typography sx={{ mb: 2 }}>
-                Search for a game to add and link {selectedVideos.size} video{selectedVideos.size > 1 ? 's' : ''} to:
-              </Typography>
               <GameSearch
                 onGameLinked={handleNewGameCreated}
                 onError={(err) =>
