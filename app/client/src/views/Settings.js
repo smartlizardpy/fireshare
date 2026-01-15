@@ -299,19 +299,39 @@ const Settings = ({ authenticated }) => {
                 <FormControlLabel
                   control={
                     <Checkbox
-                      checked={updatedConfig.ui_config?.autoplay || false}  
-                      onChange={(e) => 
+                      checked={updatedConfig.ui_config?.autoplay || false}
+                      onChange={(e) =>
                         setUpdatedConfig((prev) => ({
                           ...prev,
-                          ui_config: { 
-                            ...prev.ui_config, 
-                            autoplay: e.target.checked  
+                          ui_config: {
+                            ...prev.ui_config,
+                            autoplay: e.target.checked
                           }
                         }))
                       }
                     />
                   }
                   label="Auto Play Videos"
+                />
+                <Divider />
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant="overline" sx={{ fontWeight: 700, fontSize: 18 }}>
+                    Navigation
+                  </Typography>
+                </Box>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={updatedConfig.ui_config?.show_games_tab !== false}
+                      onChange={(e) =>
+                        setUpdatedConfig((prev) => ({
+                          ...prev,
+                          ui_config: { ...prev.ui_config, show_games_tab: e.target.checked },
+                        }))
+                      }
+                    />
+                  }
+                  label="Show Games Tab"
                 />
                 <Divider />
                 <Box sx={{ textAlign: 'center' }}>

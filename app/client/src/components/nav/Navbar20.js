@@ -49,7 +49,7 @@ const minimizedDrawerWidth = 57
 const CARD_SIZE_DEFAULT = 375
 const CARD_SIZE_MULTIPLIER = 2
 
-const pages = [
+const allPages = [
   { title: 'My Videos', icon: <VideoLibraryIcon />, href: '/', private: true },
   { title: 'Public Videos', icon: <PublicIcon />, href: '/feed', private: false },
   { title: 'Games', icon: <SportsEsportsIcon />, href: '/games', private: false },
@@ -148,6 +148,14 @@ function Navbar20({
 
   const [alert, setAlert] = React.useState({ open: false })
   const navigate = useNavigate()
+
+  const uiConfig = getSetting('ui_config') || {}
+  const pages = allPages.filter((p) => {
+    if (p.href === '/games' && uiConfig.show_games_tab === false) {
+      return false
+    }
+    return true
+  })
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen)
