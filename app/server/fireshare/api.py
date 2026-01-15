@@ -936,6 +936,8 @@ def delete_game(steamgriddb_id):
             derived_path = paths['processed'] / 'derived' / video.video_id
 
             # Delete from database
+            VideoGameLink.query.filter_by(video_id=video.video_id).delete()
+            VideoView.query.filter_by(video_id=video.video_id).delete()
             VideoInfo.query.filter_by(video_id=video.video_id).delete()
             Video.query.filter_by(video_id=video.video_id).delete()
 
