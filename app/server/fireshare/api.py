@@ -984,9 +984,16 @@ def get_steamgrid_assets(game_id):
 def get_games():
     from flask_login import current_user
 
-    # If user is authenticated, show all games
+    # If user is authenticated, show games that have at least one linked video
     if current_user.is_authenticated:
-        games = GameMetadata.query.order_by(GameMetadata.name).all()
+        games = (
+            db.session.query(GameMetadata)
+            .join(VideoGameLink)
+            .join(Video)
+            .distinct()
+            .order_by(GameMetadata.name)
+            .all()
+        )
     else:
         # For public users, only show games that have at least one public (available) video
         games = (
