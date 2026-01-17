@@ -6,6 +6,21 @@ import xxhash
 from fireshare import logger
 import time
 import glob
+import shutil
+
+# Corruption indicators to detect during video validation
+# These are ffmpeg error messages that indicate file corruption
+VIDEO_CORRUPTION_INDICATORS = [
+    "Corrupt frame detected",
+    "No sequence header",
+    "Error submitting packet to decoder",
+    "Invalid data found when processing input",
+    "Decode error rate",
+    "moov atom not found",
+    "Invalid NAL unit size",
+    "non-existing PPS",
+    "Could not find codec parameters",
+]
 
 def lock_exists(path: Path):
     """
@@ -70,6 +85,90 @@ def get_video_duration(path):
     except Exception as ex:
         logger.debug(f'Could not extract video duration: {ex}')
     return None
+
+def validate_video_file(path, timeout=30):
+    """
+    Validate that a video file is not corrupt and can be decoded.
+    
+    This function performs a quick decode test on the first few seconds of the video
+    to detect corruption issues like missing sequence headers, corrupt frames, etc.
+    
+    Args:
+        path: Path to the video file
+        timeout: Maximum time in seconds to wait for validation (default: 30)
+    
+    Returns:
+        tuple: (is_valid: bool, error_message: str or None)
+            - (True, None) if the video is valid
+            - (False, error_message) if the video is corrupt or unreadable
+    """
+    # Check if ffprobe and ffmpeg are available using shutil.which
+    if not shutil.which('ffprobe'):
+        return False, "ffprobe command not found - ensure ffmpeg is installed"
+    if not shutil.which('ffmpeg'):
+        return False, "ffmpeg command not found - ensure ffmpeg is installed"
+    
+    try:
+        # First, check if ffprobe can read the stream information
+        probe_cmd = [
+            'ffprobe', '-v', 'error', '-select_streams', 'v:0',
+            '-show_entries', 'stream=codec_name,width,height',
+            '-of', 'json', str(path)
+        ]
+        logger.debug(f"Validating video file: {' '.join(probe_cmd)}")
+        
+        probe_result = sp.run(probe_cmd, capture_output=True, text=True, timeout=timeout)
+        
+        if probe_result.returncode != 0:
+            error_msg = probe_result.stderr.strip() if probe_result.stderr else "Unknown error reading video metadata"
+            return False, f"ffprobe failed: {error_msg}"
+        
+        # Check if we got valid stream data
+        try:
+            probe_data = json.loads(probe_result.stdout)
+            if not probe_data.get('streams') or len(probe_data['streams']) == 0:
+                return False, "No video streams found in file"
+        except json.JSONDecodeError:
+            return False, "Failed to parse video metadata"
+        
+        # Now perform a quick decode test by decoding the first 2 seconds
+        # This catches issues like "No sequence header" or "Corrupt frame detected"
+        decode_cmd = [
+            'ffmpeg', '-v', 'error', '-t', '2',
+            '-i', str(path),
+            '-f', 'null', '-'
+        ]
+        logger.debug(f"Decode test: {' '.join(decode_cmd)}")
+        
+        decode_result = sp.run(decode_cmd, capture_output=True, text=True, timeout=timeout)
+        
+        # Check for decode errors - only treat as error if return code is non-zero
+        # or if stderr contains known corruption indicators
+        stderr = decode_result.stderr.strip() if decode_result.stderr else ""
+        
+        if decode_result.returncode != 0:
+            # Decode failed - check for specific corruption indicators
+            for indicator in VIDEO_CORRUPTION_INDICATORS:
+                if indicator.lower() in stderr.lower():
+                    return False, f"Video file appears to be corrupt: {indicator}"
+            # Generic decode failure
+            return False, f"Decode test failed: {stderr[:200] if stderr else 'Unknown error'}"
+        
+        # Return code is 0, but check for corruption indicators in warnings
+        # These are serious enough to indicate corruption even if ffmpeg "succeeded"
+        for indicator in VIDEO_CORRUPTION_INDICATORS:
+            if indicator.lower() in stderr.lower():
+                return False, f"Video file appears to be corrupt: {indicator}"
+        
+        return True, None
+        
+    except sp.TimeoutExpired:
+        return False, f"Validation timed out after {timeout} seconds"
+    except FileNotFoundError:
+        return False, "Video file not found"
+    except Exception as ex:
+        return False, f"Validation error: {str(ex)}"
+
 
 def calculate_transcode_timeout(video_path, base_timeout=7200):
     """
@@ -340,6 +439,14 @@ def transcode_video_quality(video_path, out_path, height, use_gpu=False, timeout
     """
     global _working_encoder_cache
     s = time.time()
+    
+    # Validate the source video file before attempting transcoding
+    # This catches corrupt files early instead of trying all encoders
+    is_valid, error_msg = validate_video_file(video_path)
+    if not is_valid:
+        logger.error(f"Source video validation failed: {error_msg}")
+        logger.warning("Skipping transcoding for this video due to file corruption or read errors")
+        return False
     
     # Calculate smart timeout based on video duration if not provided
     if timeout_seconds is None:
