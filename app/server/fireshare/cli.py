@@ -208,6 +208,25 @@ def scan_videos(root):
                 video_url = get_public_watch_url(nv.video_id, config, domain)
                 send_discord_webhook(webhook_url=discord_webhook_url, video_url=video_url)
 
+        # Automatic game detection for new videos
+        steamgriddb_api_key = config.get("integrations", {}).get("steamgriddb_api_key")
+        if new_videos:
+            logger.info(f"Running game detection for {len(new_videos)} new video(s)...")
+            for nv in new_videos:
+                filename = Path(nv.path).stem
+                logger.info(f"[Game Detection] Video: {nv.video_id}, Path: {nv.path}, Filename: {filename}")
+                detected_game = util.detect_game_from_filename(filename, steamgriddb_api_key, path=nv.path)
+
+                if detected_game:
+                    logger.info(f"[Game Detection] Result: {detected_game['game_name']} (confidence: {detected_game['confidence']:.2f}, source: {detected_game['source']})")
+                    if detected_game['confidence'] >= 0.65:
+                        save_game_suggestion(nv.video_id, detected_game)
+                        logger.info(f"[Game Detection] Saved suggestion for {nv.video_id}")
+                    else:
+                        logger.info(f"[Game Detection] Confidence too low, skipping suggestion")
+                else:
+                    logger.info(f"[Game Detection] No match found for {nv.video_id}")
+
         existing_videos = Video.query.filter_by(available=True).all()
         logger.info(f"Verifying {len(existing_videos):,} video files still exist...")
         for ev in existing_videos:
@@ -301,7 +320,7 @@ def scan_video(ctx, path):
                 logger.info("Attempting automatic game detection...")
                 steamgriddb_api_key = config.get("integrations", {}).get("steamgriddb_api_key")
                 filename = Path(v.path).stem
-                detected_game = util.detect_game_from_filename(filename, steamgriddb_api_key)
+                detected_game = util.detect_game_from_filename(filename, steamgriddb_api_key, path=v.path)
 
                 if detected_game and detected_game['confidence'] >= 0.65:
                     save_game_suggestion(v.video_id, detected_game)

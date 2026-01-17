@@ -12,6 +12,10 @@ const service = {
       config,
     })
   },
+  resetDatabase(options) {
+    const payload = options ? { options } : undefined
+    return Api().post('/api/admin/reset-database', payload)
+  },
 }
 
 export default service
