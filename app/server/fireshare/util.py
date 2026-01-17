@@ -170,7 +170,6 @@ def validate_video_file(path, timeout=30):
         return False, f"Validation error: {str(ex)}"
 
 
-
 def calculate_transcode_timeout(video_path, base_timeout=7200):
     """
     Calculate a smart timeout for video transcoding based on video duration.
