@@ -142,6 +142,119 @@ def get_warnings():
         else:
             return jsonify(warnings)
 
+@api.route('/api/admin/reset-database', methods=["POST"])
+@login_required
+def reset_database():
+    """Reset selected video and game data while preserving config and user settings"""
+    try:
+        paths = current_app.config['PATHS']
+        payload = request.get_json(silent=True) or {}
+
+        if isinstance(payload, dict) and isinstance(payload.get("options"), dict):
+            options = payload["options"]
+        elif isinstance(payload, dict):
+            options = payload
+        else:
+            options = {}
+
+        if not options:
+            options = {
+                "game_suggestions": True,
+                "game_links": True,
+                "game_metadata": True,
+                "game_assets": True,
+                "video_views": True,
+                "video_metadata": True,
+                "videos": True,
+                "processed_files": True,
+            }
+
+        reset_videos = bool(options.get("videos"))
+        reset_processed = bool(options.get("processed_files")) or reset_videos
+        reset_game_metadata = bool(options.get("game_metadata"))
+        reset_game_links = bool(options.get("game_links")) or reset_game_metadata or reset_videos
+        reset_game_assets = bool(options.get("game_assets")) or reset_game_metadata
+        reset_video_views = bool(options.get("video_views")) or reset_videos
+        reset_video_metadata = bool(options.get("video_metadata"))
+        reset_game_suggestions = bool(options.get("game_suggestions"))
+
+        if reset_game_suggestions:
+            suggestions_file = paths['data'] / 'game_suggestions.json'
+            if suggestions_file.exists():
+                suggestions_file.unlink()
+                current_app.logger.info("Deleted game_suggestions.json")
+
+        if reset_game_links:
+            VideoGameLink.query.delete()
+            current_app.logger.info("Deleted all video-game links")
+
+        if reset_game_metadata:
+            GameMetadata.query.delete()
+            current_app.logger.info("Deleted all game metadata")
+
+        if reset_video_views:
+            VideoView.query.delete()
+            current_app.logger.info("Deleted all video views")
+
+        if reset_video_metadata and not reset_videos:
+            videos_with_info = Video.query.join(VideoInfo).all()
+            for video in videos_with_info:
+                title = Path(video.path).stem
+                db.session.query(VideoInfo).filter_by(video_id=video.video_id).update({
+                    "title": title,
+                    "description": "",
+                })
+            current_app.logger.info("Reset video titles and descriptions")
+
+        if reset_videos:
+            VideoInfo.query.delete()
+            current_app.logger.info("Deleted all video info")
+            Video.query.delete()
+            current_app.logger.info("Deleted all videos")
+
+        db.session.commit()
+
+        if reset_processed:
+            video_links_dir = paths['processed'] / 'video_links'
+            derived_dir = paths['processed'] / 'derived'
+
+            if video_links_dir.exists():
+                shutil.rmtree(video_links_dir)
+                video_links_dir.mkdir()
+                current_app.logger.info("Cleared video_links directory")
+
+            if derived_dir.exists():
+                shutil.rmtree(derived_dir)
+                derived_dir.mkdir()
+                current_app.logger.info("Cleared derived directory")
+
+        if reset_game_assets:
+            game_assets_dir = paths['data'] / 'game_assets'
+            if game_assets_dir.exists():
+                shutil.rmtree(game_assets_dir)
+                game_assets_dir.mkdir()
+                current_app.logger.info("Cleared game_assets directory")
+
+        current_app.logger.info("Database reset complete")
+        return jsonify({
+            'message': 'Database reset successfully',
+            'reset': {
+                'game_suggestions': reset_game_suggestions,
+                'game_links': reset_game_links,
+                'game_metadata': reset_game_metadata,
+                'game_assets': reset_game_assets,
+                'video_views': reset_video_views,
+                'video_metadata': reset_video_metadata,
+                'videos': reset_videos,
+                'processed_files': reset_processed,
+            },
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Failed to reset database: {e}")
+        return Response(response=f'Failed to reset database: {str(e)}', status=500)
+
 @api.route('/api/manual/scan')
 @login_required
 def manual_scan():
@@ -213,15 +326,15 @@ def manual_scan_games():
                 for i, video in enumerate(videos_to_process):
                     _game_scan_state['current'] = i + 1
 
-                    # Try to detect game from filename
+                    # Try to detect game from filename or folder path
                     filename = Path(video.path).stem
-                    detected_game = util.detect_game_from_filename(filename, steamgriddb_api_key)
+                    detected_game = util.detect_game_from_filename(filename, steamgriddb_api_key, path=video.path)
 
                     if detected_game and detected_game['confidence'] >= 0.65:
                         save_game_suggestion(video.video_id, detected_game)
                         suggestions_created += 1
                         _game_scan_state['suggestions_created'] = suggestions_created
-                        logger.info(f"Created game suggestion for video {video.video_id}: {detected_game['game_name']}")
+                        logger.info(f"Created game suggestion for video {video.video_id}: {detected_game['game_name']} (confidence: {detected_game['confidence']:.2f}, source: {detected_game['source']})")
 
                 logger.info(f"Game scan complete: {suggestions_created} suggestions created from {len(videos_to_process)} videos")
 
@@ -797,6 +910,12 @@ def create_game():
             status=500,
             response=f"Failed to download game assets: {result['error']}"
         )
+
+    # Re-check for existing game after asset download (handles race condition)
+    existing_game = GameMetadata.query.filter_by(steamgriddb_id=data['steamgriddb_id']).first()
+    if existing_game:
+        current_app.logger.info(f"Game {data['name']} was created by another request, returning existing")
+        return jsonify(existing_game.json()), 200
 
     # Create game metadata (without URL fields - they will be constructed dynamically)
     game = GameMetadata(
