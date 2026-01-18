@@ -548,11 +548,13 @@ def transcode_videos(regenerate, video):
                 logger.info(f"Transcoding {vi.video_id} to 1080p")
                 # Pass None for timeout to use smart calculation, or pass base_timeout if needed
                 timeout = None  # Uses smart calculation based on video duration
-                success = util.transcode_video_quality(video_path, transcode_1080p_path, 1080, use_gpu, timeout)
+                success, failure_reason = util.transcode_video_quality(video_path, transcode_1080p_path, 1080, use_gpu, timeout)
                 if success:
                     vi.has_1080p = True
                     db.session.add(vi)
                     db.session.commit()
+                elif failure_reason == 'corruption':
+                    logger.warning(f"Skipping video {vi.video_id} 1080p transcode - source file appears corrupt")
                 else:
                     logger.warning(f"Skipping video {vi.video_id} 1080p transcode - all encoders failed")
             elif transcode_1080p_path.exists():
@@ -567,11 +569,13 @@ def transcode_videos(regenerate, video):
                 logger.info(f"Transcoding {vi.video_id} to 720p")
                 # Pass None for timeout to use smart calculation, or pass base_timeout if needed
                 timeout = None  # Uses smart calculation based on video duration
-                success = util.transcode_video_quality(video_path, transcode_720p_path, 720, use_gpu, timeout)
+                success, failure_reason = util.transcode_video_quality(video_path, transcode_720p_path, 720, use_gpu, timeout)
                 if success:
                     vi.has_720p = True
                     db.session.add(vi)
                     db.session.commit()
+                elif failure_reason == 'corruption':
+                    logger.warning(f"Skipping video {vi.video_id} 720p transcode - source file appears corrupt")
                 else:
                     logger.warning(f"Skipping video {vi.video_id} 720p transcode - all encoders failed")
             elif transcode_720p_path.exists():
