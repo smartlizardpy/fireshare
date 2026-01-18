@@ -283,6 +283,7 @@ const VideoModal = ({ open, onClose, videoId, feedView, authenticated, updateCal
                 }}
               >
                 <VideoJSPlayer
+                  key={vid.video_id}
                   sources={getVideoSources(vid.video_id, vid?.info, vid.extension)}
                   poster={getPosterUrl()}
                   autoplay={autoplay}
