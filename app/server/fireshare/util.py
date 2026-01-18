@@ -25,14 +25,25 @@ VIDEO_CORRUPTION_INDICATORS = [
 # Corruption indicators that are known false positives for AV1 files
 # These warnings can occur during initial frame decoding of valid AV1 files
 # and should be ignored if the decode test succeeds (returncode 0)
-AV1_FALSE_POSITIVE_INDICATORS = [
-    "Corrupt frame detected",
-    "No sequence header",
-    "Error submitting packet to decoder",
-    "Decode error rate",
-    "Invalid NAL unit size",
-    "non-existing PPS",
-]
+# This is a subset of VIDEO_CORRUPTION_INDICATORS
+AV1_FALSE_POSITIVE_INDICATORS = frozenset([
+    "corrupt frame detected",
+    "no sequence header",
+    "error submitting packet to decoder",
+    "decode error rate",
+    "invalid nal unit size",
+    "non-existing pps",
+])
+
+# Known AV1 codec names as reported by ffprobe
+# These are used to detect AV1-encoded source files for special handling
+AV1_CODEC_NAMES = frozenset([
+    'av1',
+    'libaom-av1',
+    'libsvtav1',
+    'av1_nvenc',
+    'av1_qsv',
+])
 
 def lock_exists(path: Path):
     """
@@ -155,7 +166,7 @@ def validate_video_file(path, timeout=30):
         
         # Detect if the source file is AV1-encoded
         # AV1 files may produce false positive corruption warnings during initial frame decoding
-        is_av1_source = codec_name in ('av1', 'libaom-av1', 'libsvtav1', 'av1_nvenc', 'av1_qsv')
+        is_av1_source = codec_name in AV1_CODEC_NAMES
         
         # Now perform a quick decode test by decoding the first 2 seconds
         # This catches issues like "No sequence header" or "Corrupt frame detected"
@@ -171,11 +182,12 @@ def validate_video_file(path, timeout=30):
         # Check for decode errors - only treat as error if return code is non-zero
         # or if stderr contains known corruption indicators
         stderr = decode_result.stderr.strip() if decode_result.stderr else ""
+        stderr_lower = stderr.lower()
         
         if decode_result.returncode != 0:
             # Decode failed - check for specific corruption indicators
             for indicator in VIDEO_CORRUPTION_INDICATORS:
-                if indicator.lower() in stderr.lower():
+                if indicator.lower() in stderr_lower:
                     return False, f"Video file appears to be corrupt: {indicator}"
             # Generic decode failure
             return False, f"Decode test failed: {stderr[:200] if stderr else 'Unknown error'}"
@@ -187,9 +199,10 @@ def validate_video_file(path, timeout=30):
             # For AV1 files, only fail on indicators that are NOT known false positives
             # Check each corruption indicator, but skip known false positives for AV1
             for indicator in VIDEO_CORRUPTION_INDICATORS:
-                if indicator in AV1_FALSE_POSITIVE_INDICATORS:
+                indicator_lower = indicator.lower()
+                if indicator_lower in AV1_FALSE_POSITIVE_INDICATORS:
                     continue  # Skip known false positives for AV1
-                if indicator.lower() in stderr.lower():
+                if indicator_lower in stderr_lower:
                     return False, f"Video file appears to be corrupt: {indicator}"
             # Log a debug message if we're ignoring warnings for AV1
             if stderr:
@@ -197,7 +210,7 @@ def validate_video_file(path, timeout=30):
         else:
             # For non-AV1 files, check all corruption indicators as before
             for indicator in VIDEO_CORRUPTION_INDICATORS:
-                if indicator.lower() in stderr.lower():
+                if indicator.lower() in stderr_lower:
                     return False, f"Video file appears to be corrupt: {indicator}"
         
         return True, None
