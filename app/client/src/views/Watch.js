@@ -203,7 +203,7 @@ const Watch = ({ authenticated }) => {
         <Box
           sx={{
             width: '100%',
-            maxWidth: 'calc((100vh - 64px - 120px) * 16 / 9)',
+            maxWidth: 'min(calc((100vh - 64px - 120px) * 16 / 9), 100vw)',
             display: 'flex',
             flexDirection: 'column',
           }}
