@@ -1099,6 +1099,10 @@ def delete_game(steamgriddb_id):
         paths = current_app.config['PATHS']
         for link in video_links:
             video = link.video
+            if video is None:
+                # Orphaned link - just delete it
+                db.session.delete(link)
+                continue
             logger.info(f"Deleting video: {video.video_id}")
 
             file_path = paths['video'] / video.path
