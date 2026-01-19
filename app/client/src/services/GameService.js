@@ -38,6 +38,12 @@ const service = {
       },
     })
   },
+  getFolderSuggestions() {
+    return Api().get('/api/folder-suggestions')
+  },
+  dismissFolderSuggestion(folderName) {
+    return Api().post(`/api/folder-suggestions/${encodeURIComponent(folderName)}/dismiss`)
+  },
 }
 
 export default service

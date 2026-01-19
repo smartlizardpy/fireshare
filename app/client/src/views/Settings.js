@@ -3,11 +3,6 @@ import {
   Box,
   Button,
   Checkbox,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
   Divider,
   FormControlLabel,
   Grid,
@@ -20,7 +15,6 @@ import SnackbarAlert from '../components/alert/SnackbarAlert'
 import SaveIcon from '@mui/icons-material/Save'
 import SensorsIcon from '@mui/icons-material/Sensors'
 import SportsEsportsIcon from '@mui/icons-material/SportsEsports'
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever'
 import VisibilityIcon from '@mui/icons-material/Visibility'
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff'
 import { ConfigService, VideoService } from '../services'
@@ -41,22 +35,7 @@ const Settings = ({ authenticated }) => {
   const [updateable, setUpdateable] = React.useState(false)
   const [discordUrl, setDiscordUrl] = React.useState('')
   const [showSteamGridKey, setShowSteamGridKey] = React.useState(false)
-  const [resetDialogOpen, setResetDialogOpen] = React.useState(false)
-  const [resetting, setResetting] = React.useState(false)
-  const defaultResetOptions = {
-    game_links: false,
-    game_suggestions: false,
-    game_metadata: false,
-    game_assets: false,
-    video_views: false,
-    video_metadata: false,
-    videos: false,
-    processed_files: false,
-  }
-  const [resetOptions, setResetOptions] = React.useState(defaultResetOptions)
   const isDiscordUsed = discordUrl.trim() !== ''
-  const hasResetSelection = Object.values(resetOptions).some(Boolean)
-
 
   React.useEffect(() => {
     async function fetch() {
@@ -133,33 +112,6 @@ const Settings = ({ authenticated }) => {
         })
       }
     }
-  }
-
-  const handleResetDatabase = async () => {
-    setResetting(true)
-    try {
-      await ConfigService.resetDatabase(resetOptions)
-      setResetDialogOpen(false)
-      setAlert({
-        open: true,
-        type: 'success',
-        message: 'Database reset successfully. You can now run a fresh scan.',
-      })
-    } catch (err) {
-      console.error(err)
-      setAlert({
-        open: true,
-        type: 'error',
-        message: err.response?.data || 'Failed to reset database',
-      })
-    } finally {
-      setResetting(false)
-    }
-  }
-
-  const openResetDialog = () => {
-    setResetOptions(defaultResetOptions)
-    setResetDialogOpen(true)
   }
 
   const checkForWarnings  = async () =>{
@@ -504,126 +456,10 @@ const Settings = ({ authenticated }) => {
               <Button variant="contained" startIcon={<SportsEsportsIcon />} onClick={handleScanGames}>
                 Start Manual Scan for Missing Games
               </Button>
-              <Button
-                variant="contained"
-                color="error"
-                startIcon={<DeleteForeverIcon />}
-                onClick={openResetDialog}
-                disabled={resetting}
-              >
-                Reset Database
-              </Button>
             </Box>
           </Grid>
         </Grid>
       </Box>
-      <Dialog open={resetDialogOpen} onClose={() => !resetting && setResetDialogOpen(false)}>
-        <DialogTitle>Reset Database?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Select what to remove. Deleting videos also removes video info, views, game links, and processed files.
-            Deleting game metadata also removes game links and game assets. Your original video files on disk are not
-            removed.
-          </DialogContentText>
-          <Stack spacing={1} sx={{ mt: 2 }}>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={resetOptions.game_links}
-                  onChange={() => setResetOptions((prev) => ({ ...prev, game_links: !prev.game_links }))}
-                  disabled={resetting}
-                />
-              }
-              label="Game links (unlink clips from games)"
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={resetOptions.game_suggestions}
-                  onChange={() => setResetOptions((prev) => ({ ...prev, game_suggestions: !prev.game_suggestions }))}
-                  disabled={resetting}
-                />
-              }
-              label="Game suggestions"
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={resetOptions.game_metadata}
-                  onChange={() => setResetOptions((prev) => ({ ...prev, game_metadata: !prev.game_metadata }))}
-                  disabled={resetting}
-                />
-              }
-              label="Game metadata (game list)"
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={resetOptions.game_assets}
-                  onChange={() => setResetOptions((prev) => ({ ...prev, game_assets: !prev.game_assets }))}
-                  disabled={resetting}
-                />
-              }
-              label="Game assets (downloaded images)"
-            />
-            <Divider />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={resetOptions.video_views}
-                  onChange={() => setResetOptions((prev) => ({ ...prev, video_views: !prev.video_views }))}
-                  disabled={resetting}
-                />
-              }
-              label="Video views"
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={resetOptions.video_metadata}
-                  onChange={() => setResetOptions((prev) => ({ ...prev, video_metadata: !prev.video_metadata }))}
-                  disabled={resetting}
-                />
-              }
-              label="Video titles and descriptions (reset to filename)"
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={resetOptions.videos}
-                  onChange={() => setResetOptions((prev) => ({ ...prev, videos: !prev.videos }))}
-                  disabled={resetting}
-                />
-              }
-              label="Videos (remove all videos from the library)"
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={resetOptions.processed_files}
-                  onChange={() => setResetOptions((prev) => ({ ...prev, processed_files: !prev.processed_files }))}
-                  disabled={resetting}
-                />
-              }
-              label="Processed files (symlinks and derived)"
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setResetDialogOpen(false)} disabled={resetting}>
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
-            startIcon={<DeleteForeverIcon />}
-            onClick={handleResetDatabase}
-            disabled={resetting || !hasResetSelection}
-          >
-            {resetting ? 'Resetting...' : 'Reset Database'}
-          </Button>
-        </DialogActions>
-      </Dialog>
     </>
   )
 }

@@ -44,6 +44,8 @@ import SnackbarAlert from '../alert/SnackbarAlert'
 import { getSetting, setSetting } from '../../common/utils'
 import SliderWrapper from '../misc/SliderWrapper'
 import GameScanStatus from './GameScanStatus'
+import FolderSuggestionInline from './FolderSuggestionInline'
+import { GameService } from '../../services'
 
 const drawerWidth = 240
 const minimizedDrawerWidth = 57
@@ -148,6 +150,8 @@ function Navbar20({
   const [cardSize, setCardSize] = React.useState(getSetting('cardSize') || CARD_SIZE_DEFAULT)
 
   const [alert, setAlert] = React.useState({ open: false })
+  const [folderSuggestions, setFolderSuggestions] = React.useState({})
+  const [currentSuggestionFolder, setCurrentSuggestionFolder] = React.useState(null)
   const navigate = useNavigate()
 
   const uiConfig = getSetting('ui_config') || {}
@@ -212,16 +216,78 @@ function Navbar20({
     fetchFolderSize();
   }, []);
 
+  // Load pending folder suggestions on mount
+  React.useEffect(() => {
+    if (!authenticated) return;
+
+    const loadPendingSuggestions = async () => {
+      try {
+        const res = await GameService.getFolderSuggestions();
+        const suggestions = res.data;
+        if (Object.keys(suggestions).length > 0) {
+          setFolderSuggestions(suggestions);
+          setCurrentSuggestionFolder(Object.keys(suggestions)[0]);
+        }
+      } catch (err) {
+        // Ignore errors
+      }
+    };
+
+    loadPendingSuggestions();
+  }, [authenticated]);
+
   // Game scan complete handler
-  const handleGameScanComplete = React.useCallback((data) => {
+  const handleGameScanComplete = React.useCallback(async (data) => {
+    console.log('[Navbar20] handleGameScanComplete called with data:', data)
     setAlert({
       open: true,
       type: 'success',
       message: data.total > 0
-        ? `Game scan complete! Found ${data.suggestions_created} suggestions from ${data.total} videos.`
+        ? `Game scan complete! Check remaining suggestions in My Videos.`
         : 'Game scan complete!',
     });
+
+    // Fetch folder suggestions and show dialog if any exist
+    try {
+      console.log('[Navbar20] Fetching folder suggestions...')
+      const res = await GameService.getFolderSuggestions()
+      const suggestions = res.data
+      console.log('[Navbar20] Folder suggestions response:', suggestions)
+      console.log('[Navbar20] Number of folder suggestions:', Object.keys(suggestions).length)
+      if (Object.keys(suggestions).length > 0) {
+        console.log('[Navbar20] Setting folder suggestions and opening dialog for:', Object.keys(suggestions)[0])
+        setFolderSuggestions(suggestions)
+        setCurrentSuggestionFolder(Object.keys(suggestions)[0])
+      } else {
+        console.log('[Navbar20] No folder suggestions to show')
+      }
+    } catch (err) {
+      console.error('[Navbar20] Error fetching folder suggestions:', err)
+    }
   }, []);
+
+  const handleFolderSuggestionApplied = (folderName, gameName, videoCount) => {
+    setAlert({
+      open: true,
+      type: 'success',
+      message: `Linked ${videoCount} clips to ${gameName}`,
+    })
+    // Show next suggestion or close
+    const remaining = { ...folderSuggestions }
+    delete remaining[folderName]
+    setFolderSuggestions(remaining)
+    const nextFolder = Object.keys(remaining)[0]
+    setCurrentSuggestionFolder(nextFolder || null)
+  }
+
+  const handleFolderSuggestionClose = () => {
+    // Show next suggestion or close
+    const remaining = { ...folderSuggestions }
+    delete remaining[currentSuggestionFolder]
+    setFolderSuggestions(remaining)
+    const nextFolder = Object.keys(remaining)[0]
+    setCurrentSuggestionFolder(nextFolder || null)
+  }
 
   const drawer = (
     <div>
@@ -315,6 +381,13 @@ function Navbar20({
       <Divider />
       <Box sx={{ width: '100%', bottom: 0, position: 'absolute' }}>
         <GameScanStatus open={open} onComplete={handleGameScanComplete} />
+        <FolderSuggestionInline
+          open={open}
+          suggestion={currentSuggestionFolder ? folderSuggestions[currentSuggestionFolder] : null}
+          folderName={currentSuggestionFolder}
+          onApplied={handleFolderSuggestionApplied}
+          onDismiss={handleFolderSuggestionClose}
+        />
         <List sx={{ pl: 1, pr: 1 }}>
           {authenticated && (
             <ListItem disablePadding>
