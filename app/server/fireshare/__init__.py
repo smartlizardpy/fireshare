@@ -118,7 +118,6 @@ def create_app(init_schedule=False):
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{app.config["DATA_DIRECTORY"]}/db.sqlite'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SCHEDULED_JOBS_DATABASE_URI'] = f'sqlite:///jobs.sqlite'
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['INIT_SCHEDULE'] = init_schedule
     app.config['MINUTES_BETWEEN_VIDEO_SCANS'] = int(os.getenv('MINUTES_BETWEEN_VIDEO_SCANS', '5'))
     app.config['WARNINGS'] = []
