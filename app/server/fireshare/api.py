@@ -276,6 +276,38 @@ def get_game_scan_status():
         'suggestions_created': _game_scan_state['suggestions_created']
     })
 
+@api.route('/api/folder-suggestions')
+@login_required
+def get_folder_suggestions():
+    """Get all pending folder suggestions"""
+    from fireshare.cli import _load_suggestions
+    suggestions = _load_suggestions()
+    logger.info(f"Loaded suggestions file, keys: {list(suggestions.keys())}")
+    folders = suggestions.get('_folders', {})
+    logger.info(f"Returning {len(folders)} folder suggestions: {list(folders.keys())}")
+    return jsonify(folders)
+
+@api.route('/api/folder-suggestions/<path:folder_name>/dismiss', methods=['POST'])
+@login_required
+def dismiss_folder_suggestion(folder_name):
+    """Dismiss a folder suggestion"""
+    from fireshare.cli import _load_suggestions, _save_suggestions
+
+    suggestions = _load_suggestions()
+    folder_suggestions = suggestions.get('_folders', {})
+
+    if folder_name not in folder_suggestions:
+        logger.warning(f"Folder suggestion not found: {folder_name}")
+        return jsonify({'error': 'Folder suggestion not found'}), 404
+
+    video_count = len(folder_suggestions[folder_name].get('video_ids', []))
+    del folder_suggestions[folder_name]
+    suggestions['_folders'] = folder_suggestions
+    _save_suggestions(suggestions)
+
+    logger.info(f"Dismissed folder suggestion: {folder_name} ({video_count} videos)")
+    return jsonify({'dismissed': True})
+
 @api.route('/api/manual/scan-games')
 @login_required
 def manual_scan_games():
@@ -299,34 +331,99 @@ def manual_scan_games():
         with app.app_context():
             try:
                 steamgriddb_api_key = get_steamgriddb_api_key()
+                logger.info(f"Starting game scan, API key configured: {bool(steamgriddb_api_key)}")
 
                 # Get all videos
                 videos = Video.query.join(VideoInfo).all()
+                logger.info(f"Found {len(videos)} total videos in database")
 
                 # Load existing suggestions and linked videos upfront (single queries)
                 existing_suggestions = _load_suggestions()
                 linked_video_ids = {link.video_id for link in VideoGameLink.query.all()}
+                existing_folder_suggestions = existing_suggestions.get('_folders', {})
+                logger.info(f"Existing suggestions: {len(existing_suggestions) - 1 if '_folders' in existing_suggestions else len(existing_suggestions)} individual, {len(existing_folder_suggestions)} folders")
+                logger.info(f"Already linked videos: {len(linked_video_ids)}")
 
-                # Filter to only videos that need processing
-                videos_to_process = [
-                    video for video in videos
-                    if video.video_id not in linked_video_ids
-                    and video.video_id not in existing_suggestions
+                # Get all unlinked videos for folder grouping
+                unlinked_videos = [v for v in videos if v.video_id not in linked_video_ids]
+                logger.info(f"Unlinked videos for folder grouping: {len(unlinked_videos)}")
+
+                # Videos needing individual suggestions (not linked and no existing suggestion)
+                videos_needing_suggestions = [
+                    video for video in unlinked_videos
+                    if video.video_id not in existing_suggestions
                 ]
+                logger.info(f"Videos needing individual suggestions: {len(videos_needing_suggestions)}")
 
-                # Set total immediately so frontend shows accurate count
-                _game_scan_state['total'] = len(videos_to_process)
+                # Set total for progress tracking
+                _game_scan_state['total'] = len(unlinked_videos)
 
-                # If nothing to process, we're done
-                if not videos_to_process:
-                    logger.info("Game scan complete: no videos to process")
+                # If nothing unlinked, we're done
+                if not unlinked_videos:
+                    logger.info("Game scan complete: no unlinked videos to process")
                     return
                 suggestions_created = 0
 
-                for i, video in enumerate(videos_to_process):
+                # Group ALL unlinked videos by folder (not just those without suggestions)
+                folder_videos = {}
+                for video in unlinked_videos:
+                    parts = video.path.split('/')
+                    folder = parts[0] if len(parts) > 1 else None
+                    if folder:
+                        if folder not in folder_videos:
+                            folder_videos[folder] = []
+                        folder_videos[folder].append(video)
+
+                logger.info(f"Grouped videos into {len(folder_videos)} folders")
+                for folder, vids in folder_videos.items():
+                    logger.info(f"  Folder '{folder}': {len(vids)} videos")
+
+                # Process folder suggestions (folders with 2+ videos)
+                folder_suggestions = existing_suggestions.get('_folders', {})
+                processed_video_ids = set()
+
+                for folder, folder_vids in folder_videos.items():
+                    logger.info(f"Processing folder '{folder}': {len(folder_vids)} videos, already in suggestions: {folder in folder_suggestions}")
+                    if len(folder_vids) >= 2 and folder not in folder_suggestions:
+                        logger.info(f"Attempting game detection for folder: '{folder}'")
+                        detected_game = util.detect_game_from_filename(folder, steamgriddb_api_key, path=f"{folder}/")
+
+                        if detected_game:
+                            logger.info(f"Detection result for '{folder}': {detected_game['game_name']} (confidence: {detected_game['confidence']:.2f})")
+                        else:
+                            logger.info(f"No game detected for folder '{folder}'")
+
+                        if detected_game and detected_game['confidence'] >= 0.65:
+                            video_ids = [v.video_id for v in folder_vids]
+                            folder_suggestions[folder] = {
+                                'game_name': detected_game['game_name'],
+                                'steamgriddb_id': detected_game.get('steamgriddb_id'),
+                                'game_id': detected_game.get('game_id'),
+                                'confidence': detected_game['confidence'],
+                                'source': detected_game['source'],
+                                'video_ids': video_ids,
+                                'video_count': len(video_ids)
+                            }
+                            processed_video_ids.update(video_ids)
+                            suggestions_created += 1
+                            _game_scan_state['suggestions_created'] = suggestions_created
+                            logger.info(f"Created folder suggestion: {folder} -> {detected_game['game_name']} ({len(video_ids)} videos)")
+                        elif detected_game:
+                            logger.info(f"Skipping folder '{folder}' - confidence {detected_game['confidence']:.2f} below threshold 0.65")
+
+                # Save folder suggestions
+                if folder_suggestions:
+                    existing_suggestions['_folders'] = folder_suggestions
+                    from fireshare.cli import _save_suggestions
+                    _save_suggestions(existing_suggestions)
+
+                # Process remaining individual videos (not in folder suggestions and no existing suggestion)
+                for i, video in enumerate(videos_needing_suggestions):
                     _game_scan_state['current'] = i + 1
 
-                    # Try to detect game from filename or folder path
+                    if video.video_id in processed_video_ids:
+                        continue
+
                     filename = Path(video.path).stem
                     detected_game = util.detect_game_from_filename(filename, steamgriddb_api_key, path=video.path)
 
@@ -336,11 +433,14 @@ def manual_scan_games():
                         _game_scan_state['suggestions_created'] = suggestions_created
                         logger.info(f"Created game suggestion for video {video.video_id}: {detected_game['game_name']} (confidence: {detected_game['confidence']:.2f}, source: {detected_game['source']})")
 
-                logger.info(f"Game scan complete: {suggestions_created} suggestions created from {len(videos_to_process)} videos")
+                logger.info(f"Game scan complete: {suggestions_created} suggestions created from {len(unlinked_videos)} unlinked videos")
 
             except Exception as e:
                 logger.error(f"Error scanning videos for games: {e}")
             finally:
+                # Brief delay so frontend can display the completed status before hiding
+                import time
+                time.sleep(2)
                 _game_scan_state['is_running'] = False
 
     thread = threading.Thread(target=run_scan)
@@ -1154,6 +1254,11 @@ def delete_game(steamgriddb_id):
 def get_video_game_suggestion(video_id):
     """Get automatic game detection suggestion for a video"""
     from fireshare.cli import get_game_suggestion
+
+    # Check if video is already linked to a game
+    existing_link = VideoGameLink.query.filter_by(video_id=video_id).first()
+    if existing_link:
+        return jsonify(None)
 
     suggestion = get_game_suggestion(video_id)
     if not suggestion:

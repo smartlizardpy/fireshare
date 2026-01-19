@@ -19,6 +19,7 @@ const GameScanStatus = ({ open, onComplete }) => {
 
   React.useEffect(() => {
     const shouldPoll = localStorage.getItem('gameScanInProgress') === 'true'
+    console.log('[GameScanStatus] shouldPoll:', shouldPoll)
     if (!shouldPoll) {
       setScanStatus(null)
       return
@@ -26,18 +27,21 @@ const GameScanStatus = ({ open, onComplete }) => {
 
     const checkStatus = async () => {
       try {
+        console.log('[GameScanStatus] Checking status...')
         const res = await StatsService.getGameScanStatus()
+        console.log('[GameScanStatus] Status response:', res.data)
         if (res.data.is_running) {
           setScanStatus(res.data)
         } else {
           // Scan finished
+          console.log('[GameScanStatus] Scan finished, calling onComplete')
           onComplete?.(res.data)
           setScanStatus(null)
           localStorage.removeItem('gameScanInProgress')
           setPollKey(prev => prev + 1)
         }
       } catch (e) {
-        // Ignore errors
+        console.error('[GameScanStatus] Error checking status:', e)
       }
     }
 
@@ -49,7 +53,9 @@ const GameScanStatus = ({ open, onComplete }) => {
   // Listen for localStorage changes from Settings page
   React.useEffect(() => {
     const handleStorageChange = (e) => {
+      console.log('[GameScanStatus] Storage event:', e.key)
       if (e.key === 'gameScanInProgress') {
+        console.log('[GameScanStatus] gameScanInProgress changed, triggering poll')
         setPollKey(prev => prev + 1)
       }
     }

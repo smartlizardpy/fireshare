@@ -7,12 +7,20 @@ import VideoList from '../components/admin/VideoList'
 import LoadingSpinner from '../components/misc/LoadingSpinner'
 import SnackbarAlert from '../components/alert/SnackbarAlert'
 
-const GameVideos = ({ cardSize, listStyle, authenticated }) => {
+const GameVideos = ({ cardSize, listStyle, authenticated, searchText }) => {
   const { gameId } = useParams()
   const [videos, setVideos] = React.useState([])
+  const [filteredVideos, setFilteredVideos] = React.useState([])
+  const [search, setSearch] = React.useState(searchText)
   const [game, setGame] = React.useState(null)
   const [loading, setLoading] = React.useState(true)
   const [alert, setAlert] = React.useState({ open: false })
+
+  // Filter videos when searchText changes
+  if (searchText !== search) {
+    setSearch(searchText)
+    setFilteredVideos(videos.filter((v) => v.info.title.search(new RegExp(searchText, 'i')) >= 0))
+  }
 
   React.useEffect(() => {
     Promise.all([
@@ -23,6 +31,7 @@ const GameVideos = ({ cardSize, listStyle, authenticated }) => {
         const foundGame = gamesRes.data.find(g => g.steamgriddb_id === parseInt(gameId))
         setGame(foundGame)
         setVideos(videosRes.data)
+        setFilteredVideos(videosRes.data)
         setLoading(false)
       })
       .catch((err) => {
@@ -59,13 +68,13 @@ const GameVideos = ({ cardSize, listStyle, authenticated }) => {
         )}
         {listStyle === 'list' ? (
           <VideoList
-            videos={videos}
+            videos={filteredVideos}
             authenticated={authenticated}
             feedView={false}
           />
         ) : (
           <VideoCards
-            videos={videos}
+            videos={filteredVideos}
             authenticated={authenticated}
             size={cardSize}
             feedView={false}

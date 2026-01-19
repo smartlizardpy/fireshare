@@ -113,7 +113,7 @@ export default function GameDetectionCard({ videoId, suggestion, onComplete, car
           justifyContent: 'space-between',
           p: 1,
           width: cardWidth,
-          background: 'rgba(50, 50, 50, 0.95)',
+          background: '#101c3c',
           borderLeft: '1px solid #3399FFAE',
           borderRight: '1px solid #3399FFAE',
           borderBottom: '1px solid #3399FFAE',
