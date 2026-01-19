@@ -24,15 +24,15 @@ echo "User gid:      $(id -g appuser)"
 echo '-------------------------------------'
 
 # Remove any lockfiles on startup
-rm -f $DATA_DIRECTORY/*. lock 2>/dev/null || true
-rm -f /jobs. sqlite 2>/dev/null || true
+rm -f $DATA_DIRECTORY/*.lock 2>/dev/null || true
+rm -f /jobs.sqlite 2>/dev/null || true
 
 # Test nginx configuration first
 echo "Testing nginx configuration..."
 nginx -t
 if [ $? -ne 0 ]; then
     echo "ERROR:  Nginx configuration test failed!"
-    cat /etc/nginx/nginx. conf
+    cat /etc/nginx/nginx.conf
     exit 1
 fi
 
