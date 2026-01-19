@@ -4,7 +4,7 @@ services:
     container_name: fireshare
     image: shaneisrael/fireshare:latest
     ports:
-      - "8080:5000"
+      - "8080:80"
     volumes:
       - ./dev_root/fireshare_data:/data
       - ./dev_root/fireshare_processed:/processed
