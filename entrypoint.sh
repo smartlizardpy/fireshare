@@ -51,29 +51,13 @@ export LD_LIBRARY_PATH=/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/
 
 # Run migrations - try different user-switching commands
 echo "Running database migrations..."
-if command -v gosu &> /dev/null; then
-    gosu appuser env PATH="$PATH" LD_LIBRARY_PATH="$LD_LIBRARY_PATH" flask db upgrade
-elif command -v su-exec &> /dev/null; then
-    su-exec appuser env PATH="$PATH" LD_LIBRARY_PATH="$LD_LIBRARY_PATH" flask db upgrade
-else
-    echo "WARNING: No user-switching command found, running as root"
-    flask db upgrade
-fi
+flask db upgrade
 
 echo "Database migrations complete"
 
 # Start gunicorn with config file if it exists, otherwise use command-line args
 echo "Starting gunicorn..."
-if command -v gosu &> /dev/null; then
-    exec gosu appuser env PATH="$PATH" LD_LIBRARY_PATH="$LD_LIBRARY_PATH" \
-        gunicorn --config /app/server/gunicorn.conf.py "fireshare:create_app(init_schedule=True)"
-elif command -v su-exec &> /dev/null; then
-    exec su-exec appuser env PATH="$PATH" LD_LIBRARY_PATH="$LD_LIBRARY_PATH" \
-        gunicorn --config /app/server/gunicorn.conf.py "fireshare:create_app(init_schedule=True)"
-else
-    echo "WARNING: Running gunicorn as root, then dropping to appuser"
-    exec env PATH="$PATH" LD_LIBRARY_PATH="$LD_LIBRARY_PATH" \
-        gunicorn --config /app/server/gunicorn.conf.py \
-        --user appuser --group appuser \
-        "fireshare:create_app(init_schedule=True)"
-fi
+exec env PATH="$PATH" LD_LIBRARY_PATH="$LD_LIBRARY_PATH" \
+    gunicorn --config /app/server/gunicorn.conf.py \
+    --user appuser --group appuser \
+    "fireshare:create_app(init_schedule=True)"
