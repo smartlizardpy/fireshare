@@ -10,6 +10,9 @@ from pathlib import Path
 import logging
 import json
 import secrets
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
+from sqlite3 import Connection as SQLite3Connection
 
 logger = logging.getLogger('fireshare')
 handler = logging.StreamHandler()
@@ -19,6 +22,35 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
 
+# Configure SQLite for better concurrency
+@event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_conn, connection_record):
+    if isinstance(dbapi_conn, SQLite3Connection):
+        cursor = dbapi_conn.cursor()
+        
+        # Enable WAL mode for better concurrency
+        cursor.execute("PRAGMA journal_mode=WAL")
+        
+        # Set busy timeout to 30 seconds (instead of failing immediately)
+        cursor.execute("PRAGMA busy_timeout = 30000")
+        
+        # Increase cache size (default is 2MB, increase to 64MB)
+        cursor.execute("PRAGMA cache_size = -64000")
+        
+        # Synchronous = NORMAL for better performance (still safe with WAL)
+        cursor.execute("PRAGMA synchronous = NORMAL")
+        
+        # Temp store in memory
+        cursor.execute("PRAGMA temp_store = MEMORY")
+        
+        # Increase mmap size for better read performance
+        cursor.execute("PRAGMA mmap_size = 268435456")  # 256MB
+        
+        # Set page size (must be done before first write)
+        cursor.execute("PRAGMA page_size = 4096")
+        
+        cursor.close()
+        
 # init SQLAlchemy so we can use it later in our models
 db = SQLAlchemy()
 migrate = Migrate()
@@ -84,8 +116,8 @@ def create_app(init_schedule=False):
     app.config['TRANSCODE_TIMEOUT'] = int(os.getenv('TRANSCODE_TIMEOUT', '7200'))  # Default: 2 hours
 
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{app.config["DATA_DIRECTORY"]}/db.sqlite'
-    app.config['SCHEDULED_JOBS_DATABASE_URI'] = f'sqlite:///jobs.sqlite'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SCHEDULED_JOBS_DATABASE_URI'] = f'sqlite:///{app.config["DATA_DIRECTORY"]}/jobs.sqlite'
     app.config['INIT_SCHEDULE'] = init_schedule
     app.config['MINUTES_BETWEEN_VIDEO_SCANS'] = int(os.getenv('MINUTES_BETWEEN_VIDEO_SCANS', '5'))
     app.config['WARNINGS'] = []
