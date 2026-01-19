@@ -21,7 +21,7 @@ rm -f /jobs. sqlite 2>/dev/null || true
 
 echo "Skipping nginx and user switching for debugging..."
 
-export PATH=/usr/local/bin: $PATH
+export PATH=/usr/local/bin:  $PATH
 export LD_LIBRARY_PATH=/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/lib:/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
 
 echo "Running database migrations as root (for debugging)..."
@@ -29,9 +29,7 @@ flask db upgrade
 
 echo "Starting gunicorn on port 5000 as root (for debugging)..."
 echo "Python version: $(python3 --version)"
-echo "Gunicorn version: $(gunicorn --version)"
-echo "Testing import..."
-python3 -c "from fireshare import create_app; print('Import successful'); app = create_app(init_schedule=True); print('App created successfully')"
+echo "Gunicorn version:  $(gunicorn --version)"
 
 echo "Actually starting gunicorn now..."
 exec gunicorn --bind=0.0.0.0:5000 \
