@@ -12,7 +12,7 @@ usermod -o -u "$PUID" appuser
 
 # Set ownership of directories BEFORE switching user
 chown -R appuser:appuser $DATA_DIRECTORY
-chown -R appuser: appuser $VIDEO_DIRECTORY
+chown -R appuser:appuser $VIDEO_DIRECTORY
 chown -R appuser:appuser $PROCESSED_DIRECTORY
 
 echo '-------------------------------------'
