@@ -117,17 +117,6 @@ def create_app(init_schedule=False):
 
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{app.config["DATA_DIRECTORY"]}/db.sqlite'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-        'pool_size': 20,  # Number of connections to keep open
-        'pool_recycle': 3600,  # Recycle connections after 1 hour
-        'pool_pre_ping': True,  # Verify connections before using
-        'max_overflow': 10,  # Allow 10 extra connections when pool is full
-        'pool_timeout': 30,  # Wait 30s for available connection
-        'connect_args': {
-            'check_same_thread': False,  # Required for SQLite with multiple threads
-            'timeout': 30  # SQLite-specific timeout
-        }
-    }
     app.config['SCHEDULED_JOBS_DATABASE_URI'] = f'sqlite:///jobs.sqlite'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['INIT_SCHEDULE'] = init_schedule
