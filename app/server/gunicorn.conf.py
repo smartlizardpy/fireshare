@@ -6,7 +6,7 @@ bind = "127.0.0.1:5000"
 backlog = 2048  # Number of pending connections
 
 # Worker processes
-workers = multiprocessing.cpu_count() * 2 + 1  # Recommended formula
+workers = multiprocessing. cpu_count() * 2 + 1  # Recommended formula
 worker_class = "gthread"  # Use threaded workers
 threads = 4  # 4 threads per worker
 worker_connections = 1000
