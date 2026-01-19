@@ -27,22 +27,10 @@ echo '-------------------------------------'
 rm -f $DATA_DIRECTORY/*.lock 2>/dev/null || true
 rm -f $DATA_DIRECTORY/jobs.sqlite 2>/dev/null || true
 
-# Test nginx configuration first
-echo "Testing nginx configuration..."
-nginx -t
-if [ $? -ne 0 ]; then
-    echo "ERROR:  Nginx configuration test failed!"
-    cat /etc/nginx/nginx.conf
-    exit 1
-fi
 
 # Start nginx as ROOT (it will drop to nginx user automatically)
 echo "Starting nginx..."
 nginx -g 'daemon on;'
-if [ $? -ne 0 ]; then
-    echo "ERROR: Failed to start nginx!"
-    exit 1
-fi
 echo "Nginx started successfully"
 
 # Ensure PATH and LD_LIBRARY_PATH are set
@@ -51,13 +39,12 @@ export LD_LIBRARY_PATH=/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/
 
 # Run migrations - try different user-switching commands
 echo "Running database migrations..."
-flask db upgrade
+runuser -u appuser -- env PATH="$PATH" LD_LIBRARY_PATH="$LD_LIBRARY_PATH" flask db upgrade
 
 echo "Database migrations complete"
 
 # Start gunicorn with config file if it exists, otherwise use command-line args
 echo "Starting gunicorn..."
 exec env PATH="$PATH" LD_LIBRARY_PATH="$LD_LIBRARY_PATH" \
-    gunicorn --config /app/server/gunicorn.conf.py \
-    --user appuser --group appuser \
-    "fireshare:create_app(init_schedule=True)"
+    gunicorn --bind=127.0.0.1:5000 "fireshare:create_app(init_schedule=True)" \
+    --user appuser --group appuser --workers 3 --threads 3 --preload
