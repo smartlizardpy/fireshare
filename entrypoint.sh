@@ -18,7 +18,7 @@ usermod -o -u "$PUID" appuser
 # Set ownership of directories
 echo "Setting directory ownership..."
 chown -R appuser:appuser $DATA_DIRECTORY
-chown -R appuser: appuser $VIDEO_DIRECTORY
+chown -R appuser:appuser $VIDEO_DIRECTORY
 chown -R appuser:appuser $PROCESSED_DIRECTORY
 
 echo '-------------------------------------'
@@ -45,7 +45,7 @@ fi
 # Start nginx as ROOT (needs to bind to port 80, then drops privileges)
 echo "Starting nginx..."
 nginx -g 'daemon on;'
-if [ $?  -ne 0 ]; then
+if [ $? -ne 0 ]; then
     echo "ERROR: Failed to start nginx!"
     exit 1
 fi
