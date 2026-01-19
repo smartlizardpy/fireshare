@@ -16,7 +16,7 @@ chown -R appuser:appuser $VIDEO_DIRECTORY
 chown -R appuser:appuser $PROCESSED_DIRECTORY
 
 echo '-------------------------------------'
-echo "User uid:     $(id -u appuser)"
+echo "User uid:      $(id -u appuser)"
 echo "User gid:    $(id -g appuser)"
 echo '-------------------------------------'
 
@@ -26,8 +26,8 @@ runuser -u appuser -- rm -f $DATA_DIRECTORY/*. lock 2> /dev/null
 # Remove job db on start
 runuser -u appuser -- rm -f /jobs. sqlite
 
-# Start nginx as appuser
-runuser -u appuser -- nginx -g 'daemon on;'
+# Start nginx as ROOT (needs to bind to port 80, then drops privileges)
+nginx -g 'daemon on;'
 
 # Ensure PATH and LD_LIBRARY_PATH are set
 export PATH=/usr/local/bin: $PATH
