@@ -39,4 +39,4 @@ exec gunicorn --bind=0.0.0.0:5000 \
     --log-level debug \
     --access-logfile - \
     --error-logfile - \
-    "fireshare: create_app(init_schedule=True)" 2>&1
+    "fireshare:create_app(init_schedule=True)" 2>&1
