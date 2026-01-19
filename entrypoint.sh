@@ -73,7 +73,7 @@ elif command -v su-exec &> /dev/null; then
 else
     echo "WARNING: Running gunicorn as root, then dropping to appuser"
     exec env PATH="$PATH" LD_LIBRARY_PATH="$LD_LIBRARY_PATH" \
-        gunicorn --config /app/server/gunicorn.conf. py \
+        gunicorn --config /app/server/gunicorn.conf.py \
         --user appuser --group appuser \
         "fireshare:create_app(init_schedule=True)"
 fi
