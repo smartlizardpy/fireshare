@@ -25,7 +25,7 @@ echo '-------------------------------------'
 
 # Remove any lockfiles on startup
 rm -f $DATA_DIRECTORY/*.lock 2>/dev/null || true
-rm -f /jobs.sqlite 2>/dev/null || true
+rm -f $DATA_DIRECTORY/jobs.sqlite 2>/dev/null || true
 
 # Test nginx configuration first
 echo "Testing nginx configuration..."
