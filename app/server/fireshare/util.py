@@ -33,6 +33,7 @@ AV1_FALSE_POSITIVE_INDICATORS = frozenset([
     "decode error rate",
     "invalid nal unit size",
     "non-existing pps",
+    "invalid data found when processing input",
 ])
 
 # Known AV1 codec names as reported by ffprobe (lowercase for matching)
