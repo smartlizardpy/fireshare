@@ -170,15 +170,9 @@ def validate_video_file(path, timeout=30):
         
         # Now perform a quick decode test by decoding the first 2 seconds
         # This catches issues like "No sequence header" or "Corrupt frame detected"
-        # Note: The -t option is placed AFTER -i (as an output option) to ensure
-        # ffmpeg reads enough of the input to properly initialize the decoder.
-        # For AV1 files, placing -t before -i (as an input option) can cause
-        # "No sequence header" errors because the decoder doesn't have time to
-        # find the sequence header before the input duration limit is reached.
         decode_cmd = [
-            'ffmpeg', '-v', 'error',
-            '-i', str(path),
-            '-t', '2', '-f', 'null', '-'
+            'ffmpeg', '-v', 'error', '-t', '2',
+            '-i', str(path), '-f', 'null', '-'
         ]
         logger.debug(f"Decode test: {' '.join(decode_cmd)}")
         
