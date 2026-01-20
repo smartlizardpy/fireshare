@@ -382,7 +382,18 @@ def manual_scan_games():
                 folder_suggestions = existing_suggestions.get('_folders', {})
                 processed_video_ids = set()
 
+                # Skip upload folders
+                from fireshare.constants import DEFAULT_CONFIG
+                upload_folders = {
+                    DEFAULT_CONFIG['app_config']['admin_upload_folder_name'].lower(),
+                    DEFAULT_CONFIG['app_config']['public_upload_folder_name'].lower(),
+                }
+
                 for folder, folder_vids in folder_videos.items():
+                    # Skip upload folders
+                    if folder.lower() in upload_folders:
+                        logger.info(f"Skipping upload folder '{folder}' for game detection")
+                        continue
                     logger.info(f"Processing folder '{folder}': {len(folder_vids)} videos, already in suggestions: {folder in folder_suggestions}")
                     if len(folder_vids) >= 2 and folder not in folder_suggestions:
                         logger.info(f"Attempting game detection for folder: '{folder}'")
