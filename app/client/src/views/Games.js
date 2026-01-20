@@ -149,7 +149,9 @@ const Games = ({ authenticated }) => {
       </Box>
 
       <Grid container spacing={2}>
-        {games.map((game) => {
+        {[...games]
+          .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }))
+          .map((game) => {
           const isHovered = hoveredGame === game.steamgriddb_id
           const heroTransform = isHovered
             ? `translate(${mousePos.x * -15}px, ${mousePos.y * -15}px) scale(1.1)`
