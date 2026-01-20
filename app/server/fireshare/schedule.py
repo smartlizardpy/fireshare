@@ -15,6 +15,16 @@ def fireshare_scan():
 def init_schedule(dburl, mins_between_scan=5):
     if mins_between_scan > 0:
         logger.info(f'Initializing scheduled video scan. minutes={mins_between_scan}')
-        scheduler = BackgroundScheduler(jobstores={'default': SQLAlchemyJobStore(url=dburl)})
+        # Configure SQLite connection for better concurrency handling
+        engine_options = {
+            'pool_pre_ping': True,
+            'connect_args': {
+                'timeout': 30,
+                'check_same_thread': False,
+            },
+        }
+        scheduler = BackgroundScheduler(
+            jobstores={'default': SQLAlchemyJobStore(url=dburl, engine_options=engine_options)}
+        )
         scheduler.add_job(fireshare_scan, 'interval', minutes=mins_between_scan, id='fireshare_scan', replace_existing=True)
         scheduler.start()

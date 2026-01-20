@@ -117,6 +117,14 @@ def create_app(init_schedule=False):
 
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{app.config["DATA_DIRECTORY"]}/db.sqlite'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    # Configure SQLite connection for better concurrency handling
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_pre_ping': True,  # Validate connections before use
+        'connect_args': {
+            'timeout': 30,  # Connection timeout in seconds
+            'check_same_thread': False,  # Allow multi-threaded access (safe with WAL mode)
+        },
+    }
     app.config['SCHEDULED_JOBS_DATABASE_URI'] = f'sqlite:///{app.config["DATA_DIRECTORY"]}/jobs.sqlite'
     app.config['INIT_SCHEDULE'] = init_schedule
     app.config['MINUTES_BETWEEN_VIDEO_SCANS'] = int(os.getenv('MINUTES_BETWEEN_VIDEO_SCANS', '5'))
