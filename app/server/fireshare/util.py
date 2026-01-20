@@ -184,31 +184,50 @@ def validate_video_file(path, timeout=30):
         stderr = decode_result.stderr.strip() if decode_result.stderr else ""
         stderr_lower = stderr.lower()
         
-        if decode_result.returncode != 0:
-            # Decode failed - check for specific corruption indicators
-            for indicator in VIDEO_CORRUPTION_INDICATORS:
-                if indicator.lower() in stderr_lower:
-                    return False, f"Video file appears to be corrupt: {indicator}"
-            # Generic decode failure
-            return False, f"Decode test failed: {stderr[:200] if stderr else 'Unknown error'}"
-        
-        # Return code is 0 (success), but check for corruption indicators in warnings
-        # For AV1 files, be more lenient - if ffmpeg succeeded (returncode 0), 
-        # don't fail on warnings that are known false positives for AV1
+        # For AV1 files, be more lenient about certain error messages
+        # Some AV1 encoders produce files that generate warnings/errors during initial
+        # frame decoding (e.g., "Corrupt frame detected", "No sequence header") but
+        # play back correctly. This is especially common with files that use temporal
+        # scalability or have non-standard sequence header placement.
         if is_av1_source:
-            # For AV1 files, only fail on indicators that are NOT known false positives
-            # Check each corruption indicator, but skip known false positives for AV1
+            # Check if the only errors are known false positives for AV1
+            found_real_error = False
+            found_false_positive = False
+            
             for indicator in VIDEO_CORRUPTION_INDICATORS:
                 indicator_lower = indicator.lower()
-                if indicator_lower in AV1_FALSE_POSITIVE_INDICATORS:
-                    continue  # Skip known false positives for AV1
                 if indicator_lower in stderr_lower:
-                    return False, f"Video file appears to be corrupt: {indicator}"
-            # Log a debug message if we're ignoring warnings for AV1
-            if stderr:
-                logger.debug(f"AV1 file had warnings during validation (ignoring since decode succeeded): {stderr[:100]}")
+                    if indicator_lower in AV1_FALSE_POSITIVE_INDICATORS:
+                        found_false_positive = True
+                    else:
+                        found_real_error = True
+                        # Found a real error, fail immediately
+                        return False, f"Video file appears to be corrupt: {indicator}"
+            
+            # If we only found false positives (no real errors), the file is valid
+            if found_false_positive and not found_real_error:
+                logger.debug(f"AV1 file had known false positive warnings during validation (ignoring): {stderr[:200]}")
+                return True, None
+            
+            # If returncode is non-zero, fail (either with stderr message or generic failure)
+            if decode_result.returncode != 0:
+                if stderr:
+                    return False, f"Decode test failed: {stderr[:200]}"
+                else:
+                    return False, "Decode test failed with no error message"
+            
+            return True, None
         else:
-            # For non-AV1 files, check all corruption indicators as before
+            # For non-AV1 files, use strict validation
+            if decode_result.returncode != 0:
+                # Decode failed - check for specific corruption indicators
+                for indicator in VIDEO_CORRUPTION_INDICATORS:
+                    if indicator.lower() in stderr_lower:
+                        return False, f"Video file appears to be corrupt: {indicator}"
+                # Generic decode failure
+                return False, f"Decode test failed: {stderr[:200] if stderr else 'Unknown error'}"
+            
+            # Return code is 0 (success), but check for corruption indicators in warnings
             for indicator in VIDEO_CORRUPTION_INDICATORS:
                 if indicator.lower() in stderr_lower:
                     return False, f"Video file appears to be corrupt: {indicator}"
