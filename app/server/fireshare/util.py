@@ -783,57 +783,68 @@ def detect_game_from_filename(filename: str, steamgriddb_api_key: str = None, pa
     import re
 
     # Step 0: Try folder name first (highest confidence source)
+    # Skip folder-based detection for upload folders (they're not game names)
+    from fireshare.constants import DEFAULT_CONFIG
+    upload_folders = {
+        DEFAULT_CONFIG['app_config']['admin_upload_folder_name'].lower(),
+        DEFAULT_CONFIG['app_config']['public_upload_folder_name'].lower(),
+    }
+
     if path:
         parts = path.split('/')
         if len(parts) > 1:  # Has at least one folder
             folder_name = parts[0]  # Top-level folder
 
-            # Try matching folder name against local game database
-            games = GameMetadata.query.all()
-            if games:
-                game_choices = [(game.name, game) for game in games]
-                result = process.extractOne(
-                    folder_name,
-                    game_choices,
-                    scorer=fuzz.token_set_ratio,
-                    score_cutoff=80  # Higher threshold for folder match
-                )
+            # Skip folder-based detection for upload folders
+            if folder_name.lower() not in upload_folders:
+                # Try matching folder name against local game database
+                games = GameMetadata.query.all()
+                if games:
+                    game_choices = [(game.name, game) for game in games]
+                    result = process.extractOne(
+                        folder_name,
+                        game_choices,
+                        scorer=fuzz.token_set_ratio,
+                        score_cutoff=80  # Higher threshold for folder match
+                    )
 
-                if result:
-                    matched_name, score, matched_game = result[0], result[1], result[2]
-                    best_match = {
-                        'game_id': matched_game.id,
-                        'game_name': matched_game.name,
-                        'steamgriddb_id': matched_game.steamgriddb_id,
-                        'confidence': score / 100,
-                        'source': 'folder_local'
-                    }
-                    logger.info(f"Folder-based game match: {best_match['game_name']} (confidence: {score:.0f}%)")
-                    return best_match
-
-            # Try SteamGridDB with folder name
-            if steamgriddb_api_key:
-                logger.info(f"No local folder match, searching SteamGridDB for folder: '{folder_name}'")
-                from fireshare.steamgrid import SteamGridDBClient
-                client = SteamGridDBClient(steamgriddb_api_key)
-
-                try:
-                    results = client.search_games(folder_name)
-                    if results and len(results) > 0:
-                        top_result = results[0]
-                        # Use higher confidence for folder-based SteamGridDB match
-                        detected = {
-                            'game_id': None,
-                            'game_name': top_result.get('name'),
-                            'steamgriddb_id': top_result.get('id'),
-                            'confidence': 0.85,  # Higher than filename-based
-                            'source': 'folder_steamgriddb',
-                            'release_date': top_result.get('release_date')
+                    if result:
+                        matched_name, score, matched_game = result[0], result[1], result[2]
+                        best_match = {
+                            'game_id': matched_game.id,
+                            'game_name': matched_game.name,
+                            'steamgriddb_id': matched_game.steamgriddb_id,
+                            'confidence': score / 100,
+                            'source': 'folder_local'
                         }
-                        logger.info(f"Folder-based SteamGridDB match: {detected['game_name']} (id: {detected['steamgriddb_id']})")
-                        return detected
-                except Exception as ex:
-                    logger.warning(f"SteamGridDB folder search failed: {ex}")
+                        logger.info(f"Folder-based game match: {best_match['game_name']} (confidence: {score:.0f}%)")
+                        return best_match
+
+                # Try SteamGridDB with folder name
+                if steamgriddb_api_key:
+                    logger.info(f"No local folder match, searching SteamGridDB for folder: '{folder_name}'")
+                    from fireshare.steamgrid import SteamGridDBClient
+                    client = SteamGridDBClient(steamgriddb_api_key)
+
+                    try:
+                        results = client.search_games(folder_name)
+                        if results and len(results) > 0:
+                            top_result = results[0]
+                            # Use higher confidence for folder-based SteamGridDB match
+                            detected = {
+                                'game_id': None,
+                                'game_name': top_result.get('name'),
+                                'steamgriddb_id': top_result.get('id'),
+                                'confidence': 0.85,  # Higher than filename-based
+                                'source': 'folder_steamgriddb',
+                                'release_date': top_result.get('release_date')
+                            }
+                            logger.info(f"Folder-based SteamGridDB match: {detected['game_name']} (id: {detected['steamgriddb_id']})")
+                            return detected
+                    except Exception as ex:
+                        logger.warning(f"SteamGridDB folder search failed: {ex}")
+            else:
+                logger.debug(f"Skipping folder-based detection for upload folder: '{folder_name}'")
 
     # Clean filename for better matching
     clean_name = filename.lower()
