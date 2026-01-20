@@ -958,7 +958,7 @@ def get_games():
 
     # If user is authenticated, show all games
     if current_user.is_authenticated:
-        games = GameMetadata.query.all()
+        games = GameMetadata.query.order_by(GameMetadata.name).all()
     else:
         # For public users, only show games that have at least one public (available) video
         games = (
@@ -971,6 +971,7 @@ def get_games():
                 VideoInfo.private.is_(False),
             )
             .distinct()
+            .order_by(GameMetadata.name)
             .all()
         )
 
