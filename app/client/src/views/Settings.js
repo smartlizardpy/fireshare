@@ -264,6 +264,20 @@ const Settings = ({ authenticated }) => {
                   }
                   label="Show Public Upload Card"
                 />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={updatedConfig.app_config?.allow_public_game_tag || false}
+                      onChange={(e) =>
+                        setUpdatedConfig((prev) => ({
+                          ...prev,
+                          app_config: { ...prev.app_config, allow_public_game_tag: e.target.checked },
+                        }))
+                      }
+                    />
+                  }
+                  label="Allow Public Game Tagging"
+                />
                 <TextField
                   size="small"
                   label="Shareable Link Domain"

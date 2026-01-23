@@ -791,7 +791,8 @@ def detect_game_from_filename(filename: str, steamgriddb_api_key: str = None, pa
     }
 
     if path:
-        parts = path.split('/')
+        normalized_path = path.replace('\\', '/')
+        parts = [part for part in normalized_path.split('/') if part]
         if len(parts) > 1:  # Has at least one folder
             folder_name = parts[0]  # Top-level folder
 

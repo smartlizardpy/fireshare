@@ -5,7 +5,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility'
 import EditIcon from '@mui/icons-material/Edit'
 import LinkIcon from '@mui/icons-material/Link'
 import { CopyToClipboard } from 'react-copy-to-clipboard'
-import { getPublicWatchUrl, getServedBy, getUrl, toHHMMSS, useDebounce, getVideoUrl } from '../../common/utils'
+import { getPublicWatchUrl, getServedBy, getUrl, toHHMMSS, useDebounce, getVideoUrl, getSetting } from '../../common/utils'
 import VideoService from '../../services/VideoService'
 import _ from 'lodash'
 import UpdateDetailsModal from '../modal/UpdateDetailsModal'
@@ -39,6 +39,9 @@ const CompactVideoCard = ({
   const [detailsModalOpen, setDetailsModalOpen] = React.useState(false)
   const [gameSuggestion, setGameSuggestion] = React.useState(null)
   const [showSuggestion, setShowSuggestion] = React.useState(true)
+
+  const uiConfig = getSetting('ui_config')
+  const canTagGames = authenticated || uiConfig?.allow_public_game_tag
 
   const previousVideoRef = React.useRef()
   const previousVideo = previousVideoRef.current
@@ -326,8 +329,8 @@ const CompactVideoCard = ({
                 width: cardWidth,
                 minHeight: previewVideoHeight,
                 border: '1px solid #3399FFAE',
-                borderBottomRightRadius: (authenticated && gameSuggestion && showSuggestion && !editMode) ? 0 : '6px',
-                borderBottomLeftRadius: (authenticated && gameSuggestion && showSuggestion && !editMode) ? 0 : '6px',
+                borderBottomRightRadius: (canTagGames && gameSuggestion && showSuggestion && !editMode) ? 0 : '6px',
+                borderBottomLeftRadius: (canTagGames && gameSuggestion && showSuggestion && !editMode) ? 0 : '6px',
                 borderTop: 'none',
                 background: 'repeating-linear-gradient(45deg,#606dbc,#606dbc 10px,#465298 10px,#465298 20px)',
                 overflow: 'hidden'
@@ -348,8 +351,8 @@ const CompactVideoCard = ({
                   WebkitAnimationDuration: '1.5s',
                   WebkitAnimationFillMode: 'both',
                   border: '1px solid #3399FFAE',
-                  borderBottomRightRadius: (authenticated && gameSuggestion && showSuggestion && !editMode) ? 0 : '6px',
-                  borderBottomLeftRadius: (authenticated && gameSuggestion && showSuggestion && !editMode) ? 0 : '6px',
+                  borderBottomRightRadius: (canTagGames && gameSuggestion && showSuggestion && !editMode) ? 0 : '6px',
+                  borderBottomLeftRadius: (canTagGames && gameSuggestion && showSuggestion && !editMode) ? 0 : '6px',
                   borderTop: 'none',
                   overflow: 'hidden'
                 }}
@@ -422,7 +425,7 @@ const CompactVideoCard = ({
         </Box>
 
         {/* Game Detection Suggestion Card */}
-        {authenticated && gameSuggestion && showSuggestion && !editMode && (
+        {canTagGames && gameSuggestion && showSuggestion && !editMode && (
           <GameDetectionCard
             videoId={video.video_id}
             suggestion={gameSuggestion}

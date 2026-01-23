@@ -60,6 +60,29 @@ def get_steamgriddb_api_key():
     # Fall back to environment variable
     return os.environ.get('STEAMGRIDDB_API_KEY', '')
 
+def login_required_unless_public_game_tag(func):
+    """
+    Decorator that requires login unless public game tagging is enabled in config.
+    """
+    from functools import wraps
+    @wraps(func)
+    def decorated_view(*args, **kwargs):
+        from flask_login import current_user
+        paths = current_app.config['PATHS']
+        config_path = paths['data'] / 'config.json'
+        allow_public = False
+        if config_path.exists():
+            try:
+                with open(config_path, 'r') as configfile:
+                    config = json.load(configfile)
+                    allow_public = config.get('app_config', {}).get('allow_public_game_tag', False)
+            except:
+                pass
+        if not current_user.is_authenticated and not allow_public:
+            return current_app.login_manager.unauthorized()
+        return func(*args, **kwargs)
+    return decorated_view
+
 def get_video_path(id, subid=None, quality=None):
     video = Video.query.filter_by(video_id=id).first()
     if not video:
@@ -97,7 +120,10 @@ def config():
     config = json.load(file)
     file.close()
     if config_path.exists():
-        return config["ui_config"]
+        # Return ui_config plus specific app_config settings that are needed publicly
+        public_config = config["ui_config"].copy()
+        public_config["allow_public_game_tag"] = config.get("app_config", {}).get("allow_public_game_tag", False)
+        return public_config
     else:
         return jsonify({})
 
@@ -367,7 +393,8 @@ def manual_scan_games():
                 # Group ALL unlinked videos by folder (not just those without suggestions)
                 folder_videos = {}
                 for video in unlinked_videos:
-                    parts = video.path.split('/')
+                    normalized_path = video.path.replace('\\', '/')
+                    parts = [part for part in normalized_path.split('/') if part]
                     folder = parts[0] if len(parts) > 1 else None
                     if folder:
                         if folder not in folder_videos:
@@ -978,7 +1005,7 @@ def get_games():
     return jsonify([game.json() for game in games])
 
 @api.route('/api/games', methods=["POST"])
-@login_required
+@login_required_unless_public_game_tag
 def create_game():
     data = request.json
 
@@ -1047,7 +1074,7 @@ def create_game():
     return jsonify(game.json()), 201
 
 @api.route('/api/videos/<video_id>/game', methods=["POST"])
-@login_required
+@login_required_unless_public_game_tag
 def link_video_to_game(video_id):
     data = request.json
 
@@ -1086,7 +1113,7 @@ def get_video_game(video_id):
     return jsonify(link.game.json())
 
 @api.route('/api/videos/<video_id>/game', methods=["DELETE"])
-@login_required
+@login_required_unless_public_game_tag
 def unlink_video_from_game(video_id):
     link = VideoGameLink.query.filter_by(video_id=video_id).first()
     if not link:
@@ -1286,7 +1313,7 @@ def get_video_game_suggestion(video_id):
     })
 
 @api.route('/api/videos/<video_id>/game/suggestion', methods=["DELETE"])
-@login_required
+@login_required_unless_public_game_tag
 def reject_game_suggestion(video_id):
     """User rejected the game suggestion - remove from storage"""
     from fireshare.cli import delete_game_suggestion

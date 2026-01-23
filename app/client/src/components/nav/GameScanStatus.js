@@ -16,6 +16,7 @@ const spinAnimation = {
 const GameScanStatus = ({ open, onComplete }) => {
   const [scanStatus, setScanStatus] = React.useState(null)
   const [pollKey, setPollKey] = React.useState(0)
+  const completionHandledRef = React.useRef(false)
 
   React.useEffect(() => {
     const shouldPoll = localStorage.getItem('gameScanInProgress') === 'true'
@@ -31,9 +32,11 @@ const GameScanStatus = ({ open, onComplete }) => {
         const res = await StatsService.getGameScanStatus()
         console.log('[GameScanStatus] Status response:', res.data)
         if (res.data.is_running) {
+          completionHandledRef.current = false
           setScanStatus(res.data)
-        } else {
+        } else if (!completionHandledRef.current) {
           // Scan finished
+          completionHandledRef.current = true
           console.log('[GameScanStatus] Scan finished, calling onComplete')
           onComplete?.(res.data)
           setScanStatus(null)

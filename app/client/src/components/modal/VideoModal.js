@@ -9,7 +9,7 @@ import VisibilityOffIcon from '@mui/icons-material/VisibilityOff'
 import VisibilityIcon from '@mui/icons-material/Visibility'
 import SportsEsportsIcon from '@mui/icons-material/SportsEsports'
 import { CopyToClipboard } from 'react-copy-to-clipboard'
-import { copyToClipboard, getPublicWatchUrl, getServedBy, getUrl, getVideoSources } from '../../common/utils'
+import { copyToClipboard, getPublicWatchUrl, getServedBy, getUrl, getVideoSources, getSetting } from '../../common/utils'
 import { ConfigService, VideoService, GameService } from '../../services'
 import SnackbarAlert from '../alert/SnackbarAlert'
 import VideoJSPlayer from '../misc/VideoJSPlayer'
@@ -389,7 +389,7 @@ const VideoModal = ({ open, onClose, videoId, feedView, authenticated, updateCal
                       </Paper>
                     )}
                     {/* Game linking */}
-                    {authenticated && (
+                    {(authenticated || getSetting('ui_config')?.allow_public_game_tag) && (
                       <Paper sx={{ mt: 1, background: 'rgba(50, 50, 50, 0.9)' }}>
                         {selectedGame ? (
                           <Box
