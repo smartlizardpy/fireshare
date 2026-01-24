@@ -17,7 +17,7 @@ const UploadCard = ({ authenticated, feedView = false, publicUpload = false, fet
   const [isSelected, setIsSelected] = React.useState(false)
   const [progress, setProgress] = React.useState(0)
   const [uploadRate, setUploadRate] = React.useState()
-
+  const app_config = getSetting('app_config')
   const uiConfig = getSetting('ui_config')
 
   const changeHandler = (event) => {
@@ -155,7 +155,7 @@ const UploadCard = ({ authenticated, feedView = false, publicUpload = false, fet
     // eslint-disable-next-line
   }, [selectedFile])
 
-  if (feedView && !uiConfig?.show_public_upload) return null
+  if (feedView && !uiConfig?.allow_public_upload) return null
   if (!feedView && !uiConfig?.show_admin_upload) return null
 
   return (

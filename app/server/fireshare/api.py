@@ -123,6 +123,7 @@ def config():
         # Return ui_config plus specific app_config settings that are needed publicly
         public_config = config["ui_config"].copy()
         public_config["allow_public_game_tag"] = config.get("app_config", {}).get("allow_public_game_tag", False)
+        public_config["allow_public_upload"] = config.get("app_config", {}).get("allow_public_upload", False)
         return public_config
     else:
         return jsonify({})
