@@ -642,7 +642,7 @@ function Navbar20({
           >
             <IconButton onClick={handleDrawerCollapse}>{open ? <ChevronLeftIcon /> : <ChevronRightIcon />}</IconButton>
           </DrawerControl>
-          <Toolbar sx={{ backgroundColor: 'rgba(0,0,0,0)' }}>
+          <Toolbar sx={{ backgroundColor: 'rgba(0,0,0,0)', gap: 2 }}>
             <IconButton
               color="inherit"
               aria-label="open drawer"
@@ -656,9 +656,10 @@ function Navbar20({
               <Search
                 placeholder={`Search videos...`}
                 searchHandler={(value) => setSearchText(value)}
-                sx={{ width: '100%', ml: { xs: 0, sm: 2 } }}
+                sx={{ flexGrow: 1, minWidth: 0, ml: { xs: 0, sm: 2 } }}
               />
             )}
+            <Box id="navbar-toolbar-extra" sx={{ display: 'flex', alignItems: 'center' }} />
           </Toolbar>
         </AppBar>
       )}

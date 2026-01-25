@@ -1,6 +1,8 @@
 import React from 'react'
+import ReactDOM from 'react-dom'
 import { Box } from '@mui/material'
 import { useParams } from 'react-router-dom'
+import Select from 'react-select'
 import { GameService } from '../services'
 import VideoCards from '../components/admin/VideoCards'
 import VideoList from '../components/admin/VideoList'
@@ -8,6 +10,7 @@ import GameVideosHeader from '../components/game/GameVideosHeader'
 import LoadingSpinner from '../components/misc/LoadingSpinner'
 import SnackbarAlert from '../components/alert/SnackbarAlert'
 import { SORT_OPTIONS } from '../common/constants'
+import selectSortTheme from '../common/reactSelectSortTheme'
 
 const GameVideos = ({ cardSize, listStyle, authenticated, searchText }) => {
   const { gameId } = useParams()
@@ -18,6 +21,7 @@ const GameVideos = ({ cardSize, listStyle, authenticated, searchText }) => {
   const [loading, setLoading] = React.useState(true)
   const [alert, setAlert] = React.useState({ open: false })
   const [sortOrder, setSortOrder] = React.useState(SORT_OPTIONS?.[0] || { value: 'newest', label: 'Newest' })
+  const [toolbarTarget, setToolbarTarget] = React.useState(null)
 
   // Filter videos when searchText changes
   if (searchText !== search) {
@@ -43,6 +47,10 @@ const GameVideos = ({ cardSize, listStyle, authenticated, searchText }) => {
       })
   }, [gameId])
 
+  React.useEffect(() => {
+    setToolbarTarget(document.getElementById('navbar-toolbar-extra'))
+  }, [])
+
   function fetchVideos() {
     GameService.getGameVideos(gameId)
       .then((res) => setVideos(res.data))
@@ -58,8 +66,8 @@ const GameVideos = ({ cardSize, listStyle, authenticated, searchText }) => {
         aVal = a.info?.title?.toLowerCase() || ''
         bVal = b.info?.title?.toLowerCase() || ''
       } else if (field === 'views') {
-        aVal = a.views || 0
-        bVal = b.views || 0
+        aVal = a.view_count || 0
+        bVal = b.view_count || 0
       } else {
         aVal = new Date(a[field] || a.created_at || 0)
         bVal = new Date(b[field] || b.created_at || 0)
@@ -75,10 +83,23 @@ const GameVideos = ({ cardSize, listStyle, authenticated, searchText }) => {
   return (
     <Box>
       <SnackbarAlert alert={alert} setAlert={setAlert} />
+      {toolbarTarget && ReactDOM.createPortal(
+        <Box sx={{ minWidth: 200 }}>
+          <Select
+            value={sortOrder}
+            options={SORT_OPTIONS}
+            onChange={setSortOrder}
+            styles={selectSortTheme}
+            menuPortalTarget={document.body}
+            menuPosition="fixed"
+            blurInputOnSelect
+            isSearchable={false}
+          />
+        </Box>,
+        toolbarTarget,
+      )}
       <GameVideosHeader
         game={game}
-        sortOrder={sortOrder}
-        onSortChange={setSortOrder}
       />
       <Box sx={{ p: 3 }}>
         {listStyle === 'list' ? (

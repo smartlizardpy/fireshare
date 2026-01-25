@@ -1,10 +1,7 @@
 import React from 'react'
 import { Box } from '@mui/material'
-import Select from 'react-select'
-import selectSortTheme from '../../common/reactSelectSortTheme'
-import { SORT_OPTIONS } from '../../common/constants'
 
-const GameVideosHeader = ({ game, sortOrder, onSortChange, height = 200 }) => (
+const GameVideosHeader = ({ game, height = 200 }) => (
     <Box
       sx={{
         position: 'relative',
@@ -33,7 +30,7 @@ const GameVideosHeader = ({ game, sortOrder, onSortChange, height = 200 }) => (
         position: 'relative',
         height: '100%',
         display: 'flex',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-start',
         alignItems: 'center',
         px: 3,
       }}
@@ -49,16 +46,6 @@ const GameVideosHeader = ({ game, sortOrder, onSortChange, height = 200 }) => (
           }}
         />
       )}
-      <Select
-        value={sortOrder}
-        options={SORT_OPTIONS}
-        onChange={onSortChange}
-        styles={selectSortTheme}
-        menuPortalTarget={document.body}
-        menuPosition="fixed"
-        blurInputOnSelect
-        isSearchable={false}
-      />
     </Box>
   </Box>
 )
