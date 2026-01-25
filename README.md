@@ -93,7 +93,6 @@ The goal of Fireshare is to provide a very simple and easy way for you to share 
 
 <h2 align="center">Uploading</h2>
 <p align="center">Allow your community or the public the ability to upload videos. Of course, this feature can be disabled or limited to only administrator access</p>
-![Uploading Gamestab.png…]()
 
 ![uploading]
 
