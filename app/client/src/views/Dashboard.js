@@ -1,6 +1,7 @@
 import React from 'react'
 import {
   Box,
+  Divider,
   Grid,
   Stack,
   IconButton,
@@ -22,7 +23,7 @@ import VideoList from '../components/admin/VideoList'
 import GameSearch from '../components/game/GameSearch'
 import { VideoService, GameService } from '../services'
 import LoadingSpinner from '../components/misc/LoadingSpinner'
-import { getSetting, setSetting } from '../common/utils'
+import { getSetting, setSetting, formatDate } from '../common/utils'
 import Select from 'react-select'
 import SnackbarAlert from '../components/alert/SnackbarAlert'
 
@@ -43,7 +44,7 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
   const [selectedFolder, setSelectedFolder] = React.useState(
     getSetting('folder') || { value: 'All Videos', label: 'All Videos' },
   )
-  const [selectedSort, setSelectedSort] = React.useState(getSetting('sortOption') || SORT_OPTIONS[0])
+  const [dateSortOrder, setDateSortOrder] = React.useState(SORT_OPTIONS?.[0] || { value: 'newest', label: 'Newest' })
 
   const [alert, setAlert] = React.useState({ open: false })
 
@@ -71,7 +72,7 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
   }
 
   function fetchVideos() {
-    VideoService.getVideos(selectedSort.value)
+    VideoService.getVideos()
       .then((res) => {
         setVideos(res.data.videos)
         setFilteredVideos(res.data.videos)
@@ -94,7 +95,7 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
         setAlert({
           open: true,
           type: 'error',
-          message: err.response?.data || 'Unknown Error',
+          message: typeof err.response?.data === 'string' ? err.response.data : 'Unknown Error',
         })
         console.log(err)
       })
@@ -103,17 +104,63 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
   React.useEffect(() => {
     fetchVideos()
     // eslint-disable-next-line
-  }, [selectedSort])
+  }, [])
 
   const handleFolderSelection = (folder) => {
     setSetting('folder', folder)
     setSelectedFolder(folder)
   }
 
-  const handleSortSelection = (sortOption) => {
-    setSetting('sortOption', sortOption)
-    setSelectedSort(sortOption)
-  }
+  // Check if sorting by views (no date grouping needed)
+  const isSortingByViews = dateSortOrder.value === 'most_views' || dateSortOrder.value === 'least_views'
+
+  // Get the filtered videos based on folder selection
+  const displayVideos = React.useMemo(() => {
+    if (selectedFolder.value === 'All Videos') {
+      return filteredVideos
+    }
+    return filteredVideos?.filter(
+      (v) =>
+        v.path
+          .split('/')
+          .slice(0, -1)
+          .filter((f) => f !== '')[0] === selectedFolder.value,
+    )
+  }, [filteredVideos, selectedFolder])
+
+  // Sort videos by recorded date or views, and group them
+  const sortedAndGroupedVideos = React.useMemo(() => {
+    if (!displayVideos) return {}
+
+    // Sort based on selected option
+    const sorted = [...displayVideos].sort((a, b) => {
+      if (dateSortOrder.value === 'most_views') {
+        return (b.view_count || 0) - (a.view_count || 0)
+      } else if (dateSortOrder.value === 'least_views') {
+        return (a.view_count || 0) - (b.view_count || 0)
+      } else {
+        const dateA = a.recorded_at ? new Date(a.recorded_at) : new Date(0)
+        const dateB = b.recorded_at ? new Date(b.recorded_at) : new Date(0)
+        return dateSortOrder.value === 'newest' ? dateB - dateA : dateA - dateB
+      }
+    })
+
+    // Skip date grouping when sorting by views
+    if (dateSortOrder.value === 'most_views' || dateSortOrder.value === 'least_views') {
+      return { all: sorted }
+    }
+
+    // Group by date
+    const groups = {}
+    sorted.forEach((video) => {
+      const dateKey = video.recorded_at
+        ? new Date(video.recorded_at).toISOString().split('T')[0]
+        : 'unknown'
+      if (!groups[dateKey]) groups[dateKey] = []
+      groups[dateKey].push(video)
+    })
+    return groups
+  }, [displayVideos, dateSortOrder])
 
   const handleEditModeToggle = () => {
     setEditMode(!editMode)
@@ -272,9 +319,9 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
                     />
                   </Box>
                   <Select
-                    value={selectedSort}
+                    value={dateSortOrder}
                     options={SORT_OPTIONS}
-                    onChange={handleSortSelection}
+                    onChange={setDateSortOrder}
                     styles={selectSortTheme}
                     blurInputOnSelect
                     isSearchable={false}
@@ -334,41 +381,65 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
                 <VideoList
                   authenticated={authenticated}
                   loadingIcon={loading ? <LoadingSpinner /> : null}
-                  videos={
-                    selectedFolder.value === 'All Videos'
-                      ? filteredVideos
-                      : filteredVideos?.filter(
-                          (v) =>
-                            v.path
-                              .split('/')
-                              .slice(0, -1)
-                              .filter((f) => f !== '')[0] === selectedFolder.value,
-                        )
-                  }
+                  videos={displayVideos}
                 />
               )}
               {listStyle === 'card' && (
-                <VideoCards
-                  authenticated={authenticated}
-                  loadingIcon={loading ? <LoadingSpinner /> : null}
-                  size={cardSize}
-                  showUploadCard={selectedFolder.value === 'All Videos'}
-                  fetchVideos={fetchVideos}
-                  editMode={editMode}
-                  selectedVideos={selectedVideos}
-                  onVideoSelect={handleVideoSelect}
-                  videos={
-                    selectedFolder.value === 'All Videos'
-                      ? filteredVideos
-                      : filteredVideos?.filter(
-                          (v) =>
-                            v.path
-                              .split('/')
-                              .slice(0, -1)
-                              .filter((f) => f !== '')[0] === selectedFolder.value,
-                        )
-                  }
-                />
+                <Box>
+                  {!loading && isSortingByViews && sortedAndGroupedVideos.all && (
+                    <VideoCards
+                      videos={sortedAndGroupedVideos.all}
+                      authenticated={authenticated}
+                      size={cardSize}
+                      showUploadCard={selectedFolder.value === 'All Videos'}
+                      fetchVideos={fetchVideos}
+                      editMode={editMode}
+                      selectedVideos={selectedVideos}
+                      onVideoSelect={handleVideoSelect}
+                    />
+                  )}
+                  {!loading && !isSortingByViews && Object.entries(sortedAndGroupedVideos).map(([dateKey, dateVideos], index) => {
+                    const formattedDate = dateKey !== 'unknown' ? formatDate(dateKey) : 'Unknown Date'
+                    const isFirst = index === 0
+                    return (
+                      <Box key={dateKey} sx={{ mb: 4 }}>
+                        <Divider sx={{ mb: 2 }} />
+                        <Typography
+                          sx={{
+                            mb: 2,
+                            fontSize: 14,
+                            fontWeight: 500,
+                            color: '#2d7cff',
+                          }}
+                        >
+                          {formattedDate}
+                        </Typography>
+                        <VideoCards
+                          videos={dateVideos}
+                          authenticated={authenticated}
+                          size={cardSize}
+                          showUploadCard={isFirst && selectedFolder.value === 'All Videos'}
+                          fetchVideos={fetchVideos}
+                          editMode={editMode}
+                          selectedVideos={selectedVideos}
+                          onVideoSelect={handleVideoSelect}
+                        />
+                      </Box>
+                    )
+                  })}
+                  {!loading && Object.keys(sortedAndGroupedVideos).length === 0 && (
+                    <VideoCards
+                      authenticated={authenticated}
+                      size={cardSize}
+                      showUploadCard={selectedFolder.value === 'All Videos'}
+                      fetchVideos={fetchVideos}
+                      videos={[]}
+                      editMode={editMode}
+                      selectedVideos={selectedVideos}
+                      onVideoSelect={handleVideoSelect}
+                    />
+                  )}
+                </Box>
               )}
             </Box>
           </Grid>
