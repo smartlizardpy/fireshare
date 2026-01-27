@@ -335,6 +335,23 @@ const Settings = ({ authenticated }) => {
                   }
                   label="Auto Play Videos"
                 />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={updatedConfig.ui_config?.show_date_groups !== false}
+                      onChange={(e) =>
+                        setUpdatedConfig((prev) => ({
+                          ...prev,
+                          ui_config: {
+                            ...prev.ui_config,
+                            show_date_groups: e.target.checked
+                          }
+                        }))
+                      }
+                    />
+                  }
+                  label="Group Videos by Date"
+                />
                 <Divider />
                 <Box sx={{ textAlign: 'center' }}>
                   <Typography variant="overline" sx={{ fontWeight: 700, fontSize: 18 }}>

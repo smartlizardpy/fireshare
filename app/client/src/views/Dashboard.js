@@ -111,8 +111,10 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
     setSelectedFolder(folder)
   }
 
-  // Check if sorting by views (no date grouping needed)
+  // Check if date grouping should be shown
+  const showDateGroups = getSetting('ui_config')?.show_date_groups !== false
   const isSortingByViews = dateSortOrder.value === 'most_views' || dateSortOrder.value === 'least_views'
+  const skipDateGrouping = isSortingByViews || !showDateGroups
 
   // Get the filtered videos based on folder selection
   const displayVideos = React.useMemo(() => {
@@ -145,8 +147,8 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
       }
     })
 
-    // Skip date grouping when sorting by views
-    if (dateSortOrder.value === 'most_views' || dateSortOrder.value === 'least_views') {
+    // Skip date grouping when sorting by views or when date groups are disabled
+    if (dateSortOrder.value === 'most_views' || dateSortOrder.value === 'least_views' || !showDateGroups) {
       return { all: sorted }
     }
 
@@ -160,7 +162,7 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
       groups[dateKey].push(video)
     })
     return groups
-  }, [displayVideos, dateSortOrder])
+  }, [displayVideos, dateSortOrder, showDateGroups])
 
   const handleEditModeToggle = () => {
     setEditMode(!editMode)
@@ -386,7 +388,7 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
               )}
               {listStyle === 'card' && (
                 <Box>
-                  {!loading && isSortingByViews && sortedAndGroupedVideos.all && (
+                  {!loading && skipDateGrouping && sortedAndGroupedVideos.all && (
                     <VideoCards
                       videos={sortedAndGroupedVideos.all}
                       authenticated={authenticated}
@@ -398,7 +400,7 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
                       onVideoSelect={handleVideoSelect}
                     />
                   )}
-                  {!loading && !isSortingByViews && Object.entries(sortedAndGroupedVideos).map(([dateKey, dateVideos], index) => {
+                  {!loading && !skipDateGrouping && Object.entries(sortedAndGroupedVideos).map(([dateKey, dateVideos], index) => {
                     const formattedDate = dateKey !== 'unknown' ? formatDate(dateKey) : 'Unknown Date'
                     const isFirst = index === 0
                     return (

@@ -148,7 +148,7 @@ const VideoCards = ({
 
       {(!vids || vids.length === 0) && EMPTY_STATE()}
       {vids && vids.length !== 0 && (
-        <Grid container justifyContent="center">
+        <Grid container justifyContent="flex-start">
           {showUploadCard && (
             <UploadCard
               authenticated={authenticated}
