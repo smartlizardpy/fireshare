@@ -201,3 +201,4 @@ const GameVideos = ({ cardSize, listStyle, authenticated, searchText }) => {
 }
 
 export default GameVideos
+``

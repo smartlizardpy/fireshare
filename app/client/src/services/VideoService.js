@@ -1,14 +1,14 @@
 import Api from './Api'
 
 const service = {
-  getVideos(sort) {
+  getVideos(sort = 'updated_at desc') {
     return Api().get('/api/videos', {
       params: {
         sort,
       },
     })
   },
-  getPublicVideos(sort) {
+  getPublicVideos(sort = 'updated_at desc') {
     return Api().get('/api/videos/public', {
       params: {
         sort,

@@ -58,6 +58,16 @@ export const setSetting = (setting, value) => {
   }
 }
 
+export const formatDate = (isoString) => {
+  if (!isoString) return null
+  const date = new Date(isoString)
+  const weekday = date.toLocaleDateString('en-US', { weekday: 'short' })
+  const month = date.toLocaleDateString('en-US', { month: 'short' })
+  const day = date.getDate()
+  const year = date.getFullYear()
+  return `${weekday}, ${month} ${day}, ${year}`
+}
+
 export const toHHMMSS = (secs) => {
   var sec_num = parseInt(secs, 10)
   var hours = Math.floor(sec_num / 3600)
