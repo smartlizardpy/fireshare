@@ -6,6 +6,13 @@ import VideoModal from '../modal/VideoModal'
 import SensorsIcon from '@mui/icons-material/Sensors'
 import { VideoService } from '../../services'
 import UploadCard from './UploadCard'
+import { formatDate } from '../../common/utils'
+
+const getDateKey = (video) => {
+  return video.recorded_at
+    ? new Date(video.recorded_at).toISOString().split('T')[0]
+    : 'unknown'
+}
 
 const VideoCards = ({
   videos,
@@ -18,6 +25,7 @@ const VideoCards = ({
   editMode = false,
   selectedVideos = new Set(),
   onVideoSelect = () => {},
+  showDateHeaders = false,
 }) => {
   const [vids, setVideos] = React.useState(videos)
   const [alert, setAlert] = React.useState({ open: false })
@@ -157,22 +165,58 @@ const VideoCards = ({
               handleAlert={memoizedHandleAlert}
               fetchVideos={fetchVideos}
               publicUpload={feedView}
+              reserveDateSpace={showDateHeaders}
             />
           )}
-          {vids.map((v) => (
-            <VisibilityCard
-              key={v.path + v.video_id}
-              video={v}
-              handleAlert={memoizedHandleAlert}
-              openVideo={openVideo}
-              cardWidth={size}
-              authenticated={authenticated}
-              deleted={handleDelete}
-              editMode={editMode}
-              isSelected={selectedVideos.has(v.video_id)}
-              onSelect={onVideoSelect}
-            />
-          ))}
+          {(() => {
+            // Pre-compute counts per date
+            const dateCounts = {}
+            vids.forEach((video) => {
+              const key = getDateKey(video)
+              dateCounts[key] = (dateCounts[key] || 0) + 1
+            })
+
+            return vids.map((v, index) => {
+              const currentDateKey = getDateKey(v)
+              const prevDateKey = index > 0 ? getDateKey(vids[index - 1]) : null
+              const isNewDate = showDateHeaders && currentDateKey !== prevDateKey
+              const formattedDate = currentDateKey !== 'unknown' ? formatDate(currentDateKey) : 'Unknown Date'
+              const hasManyclips = dateCounts[currentDateKey] >= 5
+
+              return (
+                <React.Fragment key={v.path + v.video_id}>
+                  {isNewDate && hasManyclips && (
+                    <Box sx={{ width: '100%', mt: index > 0 ? 3 : 0, mb: 1 }}>
+                      <Typography
+                        sx={{
+                          fontSize: 16,
+                          fontWeight: 700,
+                          color: '#ffffff',
+                          letterSpacing: -1,
+                          opacity: 0.8,
+                        }}
+                      >
+                        {formattedDate}
+                      </Typography>
+                    </Box>
+                  )}
+                  <VisibilityCard
+                    video={v}
+                    handleAlert={memoizedHandleAlert}
+                    openVideo={openVideo}
+                    cardWidth={size}
+                    authenticated={authenticated}
+                    deleted={handleDelete}
+                    editMode={editMode}
+                    isSelected={selectedVideos.has(v.video_id)}
+                    onSelect={onVideoSelect}
+                    dateLabel={isNewDate && !hasManyclips ? formattedDate : null}
+                    reserveDateSpace={showDateHeaders && !hasManyclips}
+                  />
+                </React.Fragment>
+              )
+            })
+          })()}
         </Grid>
       )}
     </Box>

@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom'
-import { Box, Typography } from '@mui/material'
+import { Box } from '@mui/material'
 import { useParams } from 'react-router-dom'
 import Select from 'react-select'
 import { GameService } from '../services'
@@ -8,7 +8,7 @@ import VideoCards from '../components/admin/VideoCards'
 import GameVideosHeader from '../components/game/GameVideosHeader'
 import LoadingSpinner from '../components/misc/LoadingSpinner'
 import { SORT_OPTIONS } from '../common/constants'
-import { formatDate } from '../common/utils'
+import { getSetting } from '../common/utils'
 import selectSortTheme from '../common/reactSelectSortTheme'
 
 const GameVideos = ({ cardSize, authenticated, searchText }) => {
@@ -56,8 +56,10 @@ const GameVideos = ({ cardSize, authenticated, searchText }) => {
       .catch((err) => console.error(err))
   }
 
-  // Check if sorting by views (no date grouping needed)
+  // Check if date grouping should be shown
+  const showDateGroups = getSetting('ui_config')?.show_date_groups !== false
   const isSortingByViews = sortOrder.value === 'most_views' || sortOrder.value === 'least_views'
+  const skipDateGrouping = isSortingByViews || !showDateGroups
 
   const sortedVideos = React.useMemo(() => {
     if (!filteredVideos || !Array.isArray(filteredVideos)) return []
@@ -74,21 +76,6 @@ const GameVideos = ({ cardSize, authenticated, searchText }) => {
     })
   }, [filteredVideos, sortOrder])
 
-  const groupedVideos = React.useMemo(() => {
-    // Skip grouping when sorting by views
-    if (isSortingByViews) return { all: sortedVideos }
-
-    const groups = {}
-    sortedVideos.forEach((video) => {
-      // Use just the date part (YYYY-MM-DD) for grouping, not the full timestamp
-      const dateKey = video.recorded_at
-        ? new Date(video.recorded_at).toISOString().split('T')[0]
-        : 'unknown'
-      if (!groups[dateKey]) groups[dateKey] = []
-      groups[dateKey].push(video)
-    })
-    return groups
-  }, [sortedVideos, isSortingByViews])
 
   if (loading) return <LoadingSpinner />
 
@@ -114,45 +101,14 @@ const GameVideos = ({ cardSize, authenticated, searchText }) => {
       />
       <Box sx={{ p: 3 }}>
 
-        {sortedVideos.length === 0 && (
-          <Typography color="text.secondary">No videos found for this game.</Typography>
-        )}
-
-        {isSortingByViews && groupedVideos.all && (
-          <VideoCards
-            videos={groupedVideos.all}
-            authenticated={authenticated}
-            size={cardSize}
-            feedView={false}
-            fetchVideos={fetchVideos}
-          />
-        )}
-
-        {!isSortingByViews && Object.entries(groupedVideos).map(([dateKey, dateVideos]) => {
-          const formattedDate = dateKey !== 'unknown' ? formatDate(dateKey) : 'Unknown Date'
-
-          return (
-            <Box key={dateKey} sx={{ mb: 4 }}>
-              <Typography
-                sx={{
-                  mb: 2,
-                  fontSize: 14,
-                  fontWeight: 500,
-                  color: '#2d7cff',
-                }}
-              >
-                {formattedDate}
-              </Typography>
-              <VideoCards
-                videos={dateVideos}
-                authenticated={authenticated}
-                size={cardSize}
-                feedView={false}
-                fetchVideos={fetchVideos}
-              />
-            </Box>
-          )
-        })}
+        <VideoCards
+          videos={sortedVideos}
+          authenticated={authenticated}
+          size={cardSize}
+          feedView={false}
+          fetchVideos={fetchVideos}
+          showDateHeaders={!skipDateGrouping}
+        />
       </Box>
     </Box>
   )
