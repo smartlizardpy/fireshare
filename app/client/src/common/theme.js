@@ -16,6 +16,14 @@ const theme = {
       defaultProps: {
         enableColorScheme: true,
       },
+      styleOverrides: {
+        body: {
+          letterSpacing: '-1px',
+        },
+        '*, *::before, *::after': {
+          letterSpacing: 'inherit',
+        },
+      },
     },
     MuiButtonBase: {
       defaultProps: {

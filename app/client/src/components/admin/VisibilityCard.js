@@ -1,6 +1,6 @@
 import React, { useRef } from 'react'
 import { useIsVisible } from 'react-is-visible'
-import { Grid, Typography } from '@mui/material'
+import { Box, Grid } from '@mui/material'
 import CompactVideoCard from './CompactVideoCard'
 
 const VisibilityCard = ({
@@ -30,26 +30,26 @@ const VisibilityCard = ({
         width: cardWidth,
         ml: 0.75,
         mr: 0.75,
-        mb: 1.5,
+        mb: 3,
         mt: reserveDateSpace ? 3 : 0,
         position: 'relative',
       }}
       ref={nodeRef}
     >
       {dateLabel && (
-        <Typography
+        <Box
           sx={{
             position: 'absolute',
-            top: -32,
+            top: -28,
             left: 0,
-            fontSize: 16,
-            fontWeight: 700,
             color: '#ffffff',
-            letterSpacing: -1,
+            fontSize: 14,
+            fontWeight: 600,
+            opacity: 0.8,
           }}
         >
           {dateLabel}
-        </Typography>
+        </Box>
       )}
       {isVisible ? (
         <CompactVideoCard

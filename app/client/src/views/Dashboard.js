@@ -58,6 +58,7 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
   const [games, setGames] = React.useState([])
   const [selectedGame, setSelectedGame] = React.useState(null)
   const [showAddNewGame, setShowAddNewGame] = React.useState(false)
+  const [featureAlertOpen, setFeatureAlertOpen] = React.useState(false)
 
   if (searchText !== search) {
     setSearch(searchText)
@@ -102,8 +103,17 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
 
   React.useEffect(() => {
     fetchVideos()
+    // Check if user has seen the date sorting feature announcement
+    if (!localStorage.getItem('seen_date_sorting_v1')) {
+      setFeatureAlertOpen(true)
+    }
     // eslint-disable-next-line
   }, [])
+
+  const handleFeatureAlertClose = () => {
+    localStorage.setItem('seen_date_sorting_v1', 'true')
+    setFeatureAlertOpen(false)
+  }
 
   const handleFolderSelection = (folder) => {
     setSetting('folder', folder)
@@ -476,6 +486,30 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
               Link
             </Button>
           )}
+        </DialogActions>
+      </Dialog>
+
+      {/* New Feature Announcement Dialog */}
+      <Dialog open={featureAlertOpen} onClose={handleFeatureAlertClose} maxWidth="xs">
+        <DialogTitle>
+          Update 1.5.0
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ mb: 2 }}>
+            You can now sort and group your clips by date!
+          </Typography>
+          <Typography variant="body2" color="text.secondary" component="div">
+            • Head over to the settings tab to run a scan on your clips for dates! Clips are automatically grouped by date once scanned.
+            <br /><br />
+            • If we get a date wrong, you can manually correct it in the video details.
+            <br /><br />
+            • If you prefer to hide dates entirely, you can disable them in the UI settings.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleFeatureAlertClose} variant="contained">
+            Got it
+          </Button>
         </DialogActions>
       </Dialog>
     </>
