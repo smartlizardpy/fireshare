@@ -159,8 +159,3 @@ dmypy.json
 # Pyre type checker
 .pyre/
 ldap
-docker-compose.dev.yml
-.gitignore
-run_local_nginx.sh
-app/client/package.json
-app/client/package-lock.json
