@@ -482,7 +482,7 @@ const Settings = ({ authenticated }) => {
                   variant="outlined"
                   startIcon={<RssFeedIcon />}
                   fullWidth
-                  onClick={() => window.open('http://localhost:5000/api/feed/rss', '_blank')}
+                  onClick={() => window.open('/api/feed/rss', '_blank')}
                   sx={{ borderColor: 'rgba(255, 255, 255, 0.23)', color: '#fff' }}
                 >
                   Open RSS Feed
