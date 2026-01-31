@@ -134,6 +134,8 @@ const AppBar = styled(MuiAppBar, {
 
 function Navbar20({
   authenticated,
+  showReleaseNotes,
+  releaseNotes,
   page,
   collapsed = false,
   searchable = false,
@@ -706,7 +708,7 @@ function Navbar20({
         <SnackbarAlert severity={alert.type} open={alert.open} setOpen={(open) => setAlert({ ...alert, open })}>
           {alert.message}
         </SnackbarAlert>
-        {React.cloneElement(children, { authenticated, searchText, listStyle, cardSize })}
+        {React.cloneElement(children, { authenticated, searchText, listStyle, cardSize, showReleaseNotes, releaseNotes })}
       </Box>
     </Box>
   )

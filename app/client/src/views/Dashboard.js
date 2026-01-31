@@ -20,7 +20,7 @@ import LinkIcon from '@mui/icons-material/Link'
 import VideoCards from '../components/admin/VideoCards'
 import VideoList from '../components/admin/VideoList'
 import GameSearch from '../components/game/GameSearch'
-import { VideoService, GameService } from '../services'
+import { VideoService, GameService, ReleaseService } from '../services'
 import LoadingSpinner from '../components/misc/LoadingSpinner'
 import { getSetting, setSetting } from '../common/utils'
 import Select from 'react-select'
@@ -34,7 +34,7 @@ const createSelectFolders = (folders) => {
   return folders.map((f) => ({ value: f, label: f }))
 }
 
-const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
+const Dashboard = ({ authenticated, searchText, cardSize, listStyle, showReleaseNotes, releaseNotes: releaseNotesProp }) => {
   const [videos, setVideos] = React.useState([])
   const [search, setSearch] = React.useState(searchText)
   const [filteredVideos, setFilteredVideos] = React.useState([])
@@ -43,7 +43,7 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
   const [selectedFolder, setSelectedFolder] = React.useState(
     getSetting('folder') || { value: 'All Videos', label: 'All Videos' },
   )
-  const [selectedSort, setSelectedSort] = React.useState(getSetting('sortOption') || SORT_OPTIONS[0])
+  const [dateSortOrder, setDateSortOrder] = React.useState(SORT_OPTIONS?.[0] || { value: 'newest', label: 'Newest' })
 
   const [alert, setAlert] = React.useState({ open: false })
 
@@ -58,6 +58,8 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
   const [games, setGames] = React.useState([])
   const [selectedGame, setSelectedGame] = React.useState(null)
   const [showAddNewGame, setShowAddNewGame] = React.useState(false)
+  const [featureAlertOpen, setFeatureAlertOpen] = React.useState(showReleaseNotes)
+  const releaseNotes = releaseNotesProp
 
   if (searchText !== search) {
     setSearch(searchText)
@@ -71,7 +73,7 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
   }
 
   function fetchVideos() {
-    VideoService.getVideos(selectedSort.value)
+    VideoService.getVideos()
       .then((res) => {
         setVideos(res.data.videos)
         setFilteredVideos(res.data.videos)
@@ -94,7 +96,7 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
         setAlert({
           open: true,
           type: 'error',
-          message: err.response?.data || 'Unknown Error',
+          message: typeof err.response?.data === 'string' ? err.response.data : 'Unknown Error',
         })
         console.log(err)
       })
@@ -103,17 +105,55 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
   React.useEffect(() => {
     fetchVideos()
     // eslint-disable-next-line
-  }, [selectedSort])
+  }, [])
+
+  const handleFeatureAlertClose = () => {
+    if (releaseNotes?.version && authenticated) {
+      ReleaseService.setLastSeenVersion(releaseNotes.version).catch(() => {})
+    }
+    setFeatureAlertOpen(false)
+  }
 
   const handleFolderSelection = (folder) => {
     setSetting('folder', folder)
     setSelectedFolder(folder)
   }
 
-  const handleSortSelection = (sortOption) => {
-    setSetting('sortOption', sortOption)
-    setSelectedSort(sortOption)
-  }
+  // Check if date grouping should be shown
+  const showDateGroups = getSetting('ui_config')?.show_date_groups !== false
+  const isSortingByViews = dateSortOrder.value === 'most_views' || dateSortOrder.value === 'least_views'
+  const skipDateGrouping = isSortingByViews || !showDateGroups
+
+  // Get the filtered videos based on folder selection
+  const displayVideos = React.useMemo(() => {
+    if (selectedFolder.value === 'All Videos') {
+      return filteredVideos
+    }
+    return filteredVideos?.filter(
+      (v) =>
+        v.path
+          .split('/')
+          .slice(0, -1)
+          .filter((f) => f !== '')[0] === selectedFolder.value,
+    )
+  }, [filteredVideos, selectedFolder])
+
+  // Sort videos by recorded date or views
+  const sortedVideos = React.useMemo(() => {
+    if (!displayVideos) return []
+
+    return [...displayVideos].sort((a, b) => {
+      if (dateSortOrder.value === 'most_views') {
+        return (b.view_count || 0) - (a.view_count || 0)
+      } else if (dateSortOrder.value === 'least_views') {
+        return (a.view_count || 0) - (b.view_count || 0)
+      } else {
+        const dateA = a.recorded_at ? new Date(a.recorded_at) : new Date(0)
+        const dateB = b.recorded_at ? new Date(b.recorded_at) : new Date(0)
+        return dateSortOrder.value === 'newest' ? dateB - dateA : dateA - dateB
+      }
+    })
+  }, [displayVideos, dateSortOrder])
 
   const handleEditModeToggle = () => {
     setEditMode(!editMode)
@@ -272,9 +312,9 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
                     />
                   </Box>
                   <Select
-                    value={selectedSort}
+                    value={dateSortOrder}
                     options={SORT_OPTIONS}
-                    onChange={handleSortSelection}
+                    onChange={setDateSortOrder}
                     styles={selectSortTheme}
                     blurInputOnSelect
                     isSearchable={false}
@@ -334,41 +374,25 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
                 <VideoList
                   authenticated={authenticated}
                   loadingIcon={loading ? <LoadingSpinner /> : null}
-                  videos={
-                    selectedFolder.value === 'All Videos'
-                      ? filteredVideos
-                      : filteredVideos?.filter(
-                          (v) =>
-                            v.path
-                              .split('/')
-                              .slice(0, -1)
-                              .filter((f) => f !== '')[0] === selectedFolder.value,
-                        )
-                  }
+                  videos={displayVideos}
                 />
               )}
               {listStyle === 'card' && (
-                <VideoCards
-                  authenticated={authenticated}
-                  loadingIcon={loading ? <LoadingSpinner /> : null}
-                  size={cardSize}
-                  showUploadCard={selectedFolder.value === 'All Videos'}
-                  fetchVideos={fetchVideos}
-                  editMode={editMode}
-                  selectedVideos={selectedVideos}
-                  onVideoSelect={handleVideoSelect}
-                  videos={
-                    selectedFolder.value === 'All Videos'
-                      ? filteredVideos
-                      : filteredVideos?.filter(
-                          (v) =>
-                            v.path
-                              .split('/')
-                              .slice(0, -1)
-                              .filter((f) => f !== '')[0] === selectedFolder.value,
-                        )
-                  }
-                />
+                <Box>
+                  {!loading && (
+                    <VideoCards
+                      videos={sortedVideos}
+                      authenticated={authenticated}
+                      size={cardSize}
+                      showUploadCard={selectedFolder.value === 'All Videos'}
+                      fetchVideos={fetchVideos}
+                      editMode={editMode}
+                      selectedVideos={selectedVideos}
+                      onVideoSelect={handleVideoSelect}
+                      showDateHeaders={!skipDateGrouping}
+                    />
+                  )}
+                </Box>
               )}
             </Box>
           </Grid>
@@ -461,6 +485,64 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle }) => {
               Link
             </Button>
           )}
+        </DialogActions>
+      </Dialog>
+
+      {/* Release Notes Dialog */}
+      <Dialog open={featureAlertOpen} onClose={handleFeatureAlertClose} maxWidth="sm" scroll="paper">
+        <DialogTitle>
+          {releaseNotes?.name || `Update ${releaseNotes?.version}`}
+        </DialogTitle>
+        <DialogContent sx={{ maxHeight: '70vh', overflowY: 'auto' }}>
+          <Box
+            sx={{
+              '& p': { my: 1 },
+              '& strong': { fontWeight: 600 },
+              '& a': { color: 'primary.main' },
+              '& ul, & ol': { pl: 2, my: 1 },
+              '& li': { mb: 0.5 },
+            }}
+            dangerouslySetInnerHTML={{
+              __html: releaseNotes?.body
+                ? releaseNotes.body
+                    // Escape HTML first
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    // Remove @username mentions
+                    .replace(/@[\w-]+/g, '')
+                    // Headers
+                    .replace(/^## (.+)$/gm, '<strong style="font-size: 1.1em;">$1</strong>')
+                    .replace(/^### (.+)$/gm, '<strong>$1</strong>')
+                    // Bold
+                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                    // Links
+                    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+                    .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>')
+                    // Line breaks
+                    .replace(/\n\n/g, '</p><p>')
+                    .replace(/\n/g, '<br/>')
+                    // Wrap in paragraph
+                    .replace(/^(.*)$/, '<p>$1</p>')
+                : 'Check out the latest updates!',
+            }}
+          />
+          {releaseNotes?.html_url && (
+            <Typography variant="caption" sx={{ display: 'block', mt: 2 }}>
+              <a
+                href={releaseNotes.html_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: 'inherit' }}
+              >
+                View full release on GitHub
+              </a>
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleFeatureAlertClose} variant="contained">
+            Got it
+          </Button>
         </DialogActions>
       </Dialog>
     </>

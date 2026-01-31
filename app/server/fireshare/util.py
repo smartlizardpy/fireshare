@@ -7,6 +7,8 @@ from fireshare import logger
 import time
 import glob
 import shutil
+import re
+from datetime import datetime
 
 # Corruption indicators to detect during video validation
 # These are ffmpeg error messages that indicate file corruption
@@ -915,4 +917,59 @@ def detect_game_from_filename(filename: str, steamgriddb_api_key: str = None, pa
             logger.warning(f"SteamGridDB search failed: {ex}")
 
     logger.debug(f"No game match found for filename: '{clean_name}'")
+    return None
+
+def extract_date_from_filename(filename: str):
+    """
+    Extract a recording date from a video filename using regex patterns.
+
+    Supports formats from common screen recording software:
+    - 2024-01-14, 2024_01_14, 2024.01.14
+    - 20240114
+    - 01-14-2024, 01_14_2024
+
+    Args:
+        filename: Video filename (with or without extension)
+
+    Returns:
+        datetime object if a valid date was found, None otherwise
+    """
+    name = Path(filename).stem
+
+    # Pattern 1: YYYY-MM-DD or YYYY_MM_DD or YYYY.MM.DD (with optional time)
+    match = re.search(r'(\d{4})[-_.](\d{2})[-_.](\d{2})(?:[-_.\s]+(\d{2})[-_.](\d{2})[-_.](\d{2}))?', name)
+    if match:
+        y, m, d = int(match.group(1)), int(match.group(2)), int(match.group(3))
+        hr = int(match.group(4)) if match.group(4) else 0
+        mi = int(match.group(5)) if match.group(5) else 0
+        se = int(match.group(6)) if match.group(6) else 0
+        try:
+            if 2000 <= y <= datetime.now().year + 1:
+                return datetime(y, m, d, hr, mi, se)
+        except ValueError:
+            pass
+
+    # Pattern 2: YYYYMMDD (compact, with optional time HHMMSS)
+    match = re.search(r'(\d{4})(\d{2})(\d{2})(?:[-_]?(\d{2})(\d{2})(\d{2}))?', name)
+    if match:
+        y, m, d = int(match.group(1)), int(match.group(2)), int(match.group(3))
+        hr = int(match.group(4)) if match.group(4) else 0
+        mi = int(match.group(5)) if match.group(5) else 0
+        se = int(match.group(6)) if match.group(6) else 0
+        try:
+            if 2000 <= y <= datetime.now().year + 1:
+                return datetime(y, m, d, hr, mi, se)
+        except ValueError:
+            pass
+
+    # Pattern 3: MM-DD-YYYY or MM_DD_YYYY (US format)
+    match = re.search(r'(\d{2})[-_](\d{2})[-_](\d{4})', name)
+    if match:
+        m, d, y = int(match.group(1)), int(match.group(2)), int(match.group(3))
+        try:
+            if 2000 <= y <= datetime.now().year + 1:
+                return datetime(y, m, d)
+        except ValueError:
+            pass
+
     return None

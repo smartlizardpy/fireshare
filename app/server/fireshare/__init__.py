@@ -224,4 +224,14 @@ def create_app(init_schedule=False):
 
     with app.app_context():
         # db.create_all()
+
+        # Auto-migrate: add last_seen_version column to user table if missing
+        from sqlalchemy import inspect, text
+        inspector = inspect(db.engine)
+        user_columns = [col['name'] for col in inspector.get_columns('user')]
+        if 'last_seen_version' not in user_columns:
+            logger.info("Adding last_seen_version column to user table")
+            db.session.execute(text('ALTER TABLE user ADD COLUMN last_seen_version VARCHAR(32)'))
+            db.session.commit()
+
         return app

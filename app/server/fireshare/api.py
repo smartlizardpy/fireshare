@@ -11,12 +11,12 @@ from flask_login import current_user, login_required
 from flask_cors import CORS
 from sqlalchemy.sql import text
 from pathlib import Path
-import time
+import requests
 from werkzeug.utils import secure_filename
 
 
 from . import db, logger
-from .models import Video, VideoInfo, VideoView, GameMetadata, VideoGameLink
+from .models import User, Video, VideoInfo, VideoView, GameMetadata, VideoGameLink
 from .constants import SUPPORTED_FILE_TYPES
 from datetime import datetime
 
@@ -127,6 +127,114 @@ def config():
         return public_config
     else:
         return jsonify({})
+
+# Cache for local app version and release notes (persists until server restart)
+_local_version_cache = {'version': None}
+_release_cache = {'data': None}
+
+def _get_local_version():
+    """Get the locally installed app version from package.json. Cached until server restart."""
+    if _local_version_cache['version']:
+        return _local_version_cache['version']
+
+    try:
+        # Find package.json relative to this file: app/server/fireshare/api.py -> app/client/package.json
+        api_dir = Path(__file__).parent
+        package_json_path = api_dir.parent.parent / 'client' / 'package.json'
+
+        with open(package_json_path, 'r') as f:
+            package_data = json.load(f)
+            _local_version_cache['version'] = package_data.get('version', '')
+            return _local_version_cache['version']
+    except Exception as e:
+        logger.error(f"Failed to read local version from package.json: {e}")
+        return None
+
+def _fetch_release_notes():
+    """Fetch and cache release notes for the LOCAL version from GitHub. Cached until server restart."""
+    if _release_cache['data']:
+        return _release_cache['data']
+
+    local_version = _get_local_version()
+    if not local_version:
+        return None
+
+    try:
+        response = requests.get(
+            'https://api.github.com/repos/ShaneIsrael/fireshare/releases',
+            headers={'Accept': 'application/vnd.github.v3+json'},
+            timeout=10
+        )
+        response.raise_for_status()
+        releases = response.json()
+
+        if not releases:
+            return None
+
+        # Find the release matching the local version
+        target_release = None
+        for release in releases:
+            release_version = release.get('tag_name', '').lstrip('v')
+            if release_version == local_version:
+                target_release = release
+                break
+
+        # Fall back to latest if local version not found on GitHub
+        if not target_release:
+            logger.warning(f"Local version {local_version} not found on GitHub, using latest release")
+            target_release = releases[0]
+
+        _release_cache['data'] = {
+            'version': target_release.get('tag_name', '').lstrip('v'),
+            'name': target_release.get('name', ''),
+            'body': target_release.get('body', ''),
+            'published_at': target_release.get('published_at', ''),
+            'html_url': target_release.get('html_url', '')
+        }
+        return _release_cache['data']
+
+    except requests.RequestException as e:
+        logger.error(f"Failed to fetch GitHub releases: {e}")
+        return None
+
+@api.route('/api/release-notes')
+def get_release_notes():
+    """
+    Fetch latest release notes from GitHub, with 24-hour caching.
+    Also returns whether the current user should see the dialog.
+    """
+    release_data = _fetch_release_notes()
+
+    if not release_data:
+        return jsonify({'error': 'No releases found'}), 404
+
+    # Check if user should see the dialog (server-side decision)
+    show_dialog = False
+    if current_user.is_authenticated:
+        show_dialog = current_user.last_seen_version != release_data['version']
+
+    return jsonify({
+        **release_data,
+        'show_dialog': show_dialog
+    })
+
+@api.route('/api/user/last-seen-version', methods=["PUT"])
+@login_required
+def user_last_seen_version():
+    """
+    Update the last seen version for the current user.
+    Called when user dismisses the release notes dialog.
+    """
+    data = request.get_json()
+    version = data.get('version') if data else None
+    if not version:
+        return Response(status=400, response='Version is required.')
+
+    old_version = current_user.last_seen_version
+    current_user.last_seen_version = version
+    db.session.commit()
+    logger.info(f"User '{current_user.username}' last_seen_version updated: {old_version} -> {version}")
+    return jsonify({'last_seen_version': version})
 
 @api.route('/api/admin/config', methods=["GET", "PUT"])
 @login_required
@@ -291,6 +399,36 @@ def manual_scan():
         current_app.logger.info(f"Executed manual scan")
         Popen(["fireshare", "bulk-import"], shell=False)
     return Response(status=200)
+
+@api.route('/api/manual/scan-dates')
+@login_required
+def manual_scan_dates():
+    """Extract recording dates from filenames for videos missing recorded_at"""
+    from fireshare import util
+
+    try:
+        videos = Video.query.filter(Video.recorded_at.is_(None)).all()
+        dates_extracted = 0
+
+        for video in videos:
+            filename = Path(video.path).stem
+            recorded_at = util.extract_date_from_filename(filename)
+            if recorded_at:
+                video.recorded_at = recorded_at
+                dates_extracted += 1
+                logger.info(f"Extracted date {recorded_at.isoformat()} for video {video.video_id}")
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'videos_scanned': len(videos),
+            'dates_extracted': dates_extracted
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error scanning for dates: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @api.route('/api/scan-games/status')
 @login_required
@@ -577,6 +715,46 @@ def get_public_videos():
 
     return jsonify({"videos": videos_json})
 
+@api.route('/api/videos/dates')
+def get_video_dates():
+    """Get all unique dates that have videos recorded on them"""
+    from sqlalchemy import func
+    from flask_login import current_user
+
+    query = db.session.query(func.date(Video.recorded_at)).join(VideoInfo).filter(
+        Video.recorded_at.isnot(None),
+        Video.available.is_(True)
+    )
+
+    if not current_user.is_authenticated:
+        query = query.filter(VideoInfo.private.is_(False))
+
+    dates = query.distinct().order_by(func.date(Video.recorded_at).desc()).all()
+    return jsonify([str(d[0]) for d in dates if d[0]])
+
+@api.route('/api/videos/by-date/<date>')
+def get_videos_by_date(date):
+    """Get all videos recorded on a specific date (YYYY-MM-DD)"""
+    from sqlalchemy import func
+    from flask_login import current_user
+
+    try:
+        target_date = datetime.strptime(date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
+
+    query = Video.query.join(VideoInfo).filter(
+        func.date(Video.recorded_at) == target_date,
+        Video.available.is_(True)
+    )
+
+    if not current_user.is_authenticated:
+        query = query.filter(VideoInfo.private.is_(False))
+
+    videos = query.order_by(Video.recorded_at.desc()).all()
+    videos_json = [{"view_count": VideoView.count(v.video_id), **v.json()} for v in videos]
+    return jsonify({"videos": videos_json, "date": date})
+
 @api.route('/api/video/delete/<id>', methods=["DELETE"])
 @login_required
 def delete_video(id):
@@ -630,7 +808,26 @@ def handle_video_details(id):
             return Response(response='You do not have access to this resource.', status=401)
         video_info = VideoInfo.query.filter_by(video_id=id).first()
         if video_info:
-            db.session.query(VideoInfo).filter_by(video_id=id).update(request.json)
+            # Handle recorded_at separately since it's on Video model, not VideoInfo
+            data = request.json.copy()
+            recorded_at = data.pop('recorded_at', None)
+
+            # Update VideoInfo fields
+            if data:
+                db.session.query(VideoInfo).filter_by(video_id=id).update(data)
+
+            # Update Video.recorded_at if provided
+            if recorded_at is not None:
+                video = Video.query.filter_by(video_id=id).first()
+                if video:
+                    if recorded_at == '' or recorded_at is None:
+                        video.recorded_at = None
+                    else:
+                        try:
+                            video.recorded_at = datetime.fromisoformat(recorded_at.replace('Z', '+00:00'))
+                        except (ValueError, AttributeError):
+                            video.recorded_at = None
+
             db.session.commit()
             return Response(status=201)
         else:

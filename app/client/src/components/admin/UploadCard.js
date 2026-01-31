@@ -11,7 +11,7 @@ const Input = styled('input')({
 
 const numberFormat = new Intl.NumberFormat('en-US')
 
-const UploadCard = ({ authenticated, feedView = false, publicUpload = false, fetchVideos, cardWidth, handleAlert }) => {
+const UploadCard = ({ authenticated, feedView = false, publicUpload = false, fetchVideos, cardWidth, handleAlert, reserveDateSpace = false }) => {
   const cardHeight = cardWidth / 1.77 + 32
   const [selectedFile, setSelectedFile] = React.useState()
   const [isSelected, setIsSelected] = React.useState(false)
@@ -159,7 +159,10 @@ const UploadCard = ({ authenticated, feedView = false, publicUpload = false, fet
   if (!feedView && !uiConfig?.show_admin_upload) return null
 
   return (
-    <Grid item sx={{ ml: 0.75, mr: 0.75, mb: 1.5 }}>
+    <Grid item sx={{ ml: 0.75, mr: 0.75, mb: 3 }}>
+      {reserveDateSpace && (
+        <Box sx={{ height: 20, mb: 1 }} />
+      )}
       <label htmlFor="icon-button-file">
         {/* Add onDrop and onDragOver handlers */}
         <Paper

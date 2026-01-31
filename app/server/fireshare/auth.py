@@ -4,6 +4,7 @@ from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from .models import User
 from . import db
+from .api import _get_local_version, _fetch_release_notes
 import ldap
 import logging
 
@@ -117,8 +118,24 @@ def signup():
 @auth.route('/api/loggedin', methods=['GET'])
 def loggedin():
     if not current_user.is_authenticated:
-        return Response(response='false', status=200)
-    return Response(response='true', status=200)
+        return jsonify({'authenticated': False})
+
+    # Check if user should see release notes (runs once per app load)
+    show_release_notes = False
+    release_notes = None
+    release_data = _fetch_release_notes()
+    local_version = _get_local_version()
+
+    if release_data and local_version:
+        if current_user.last_seen_version != local_version:
+            show_release_notes = True
+            release_notes = release_data
+
+    return jsonify({
+        'authenticated': True,
+        'show_release_notes': show_release_notes,
+        'release_notes': release_notes
+    })
 
 @auth.route('/api/logout', methods=['POST'])
 def logout():

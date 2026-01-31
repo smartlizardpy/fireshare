@@ -171,6 +171,7 @@ const CompactVideoCard = ({
         videoId={video.video_id}
         currentTitle={title || ''}
         currentDescription={description || ''}
+        currentRecordedAt={video.recorded_at}
         alertHandler={alertHandler}
       />
 
