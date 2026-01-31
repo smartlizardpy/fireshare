@@ -526,7 +526,7 @@ const Settings = ({ authenticated }) => {
                   onClick={handleCopyRssFeedUrl}
                   sx={{ borderColor: 'rgba(255, 255, 255, 0.23)', color: '#fff' }}
                 >
-                  Open RSS Feed
+                  Copy RSS Feed URL
                 </Button>
                 <Divider />
                 <Button
