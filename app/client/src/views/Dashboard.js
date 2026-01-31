@@ -489,11 +489,11 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle, showRelease
       </Dialog>
 
       {/* Release Notes Dialog */}
-      <Dialog open={featureAlertOpen} onClose={handleFeatureAlertClose} maxWidth="sm">
+      <Dialog open={featureAlertOpen} onClose={handleFeatureAlertClose} maxWidth="sm" scroll="paper">
         <DialogTitle>
           {releaseNotes?.name || `Update ${releaseNotes?.version}`}
         </DialogTitle>
-        <DialogContent>
+        <DialogContent sx={{ maxHeight: '70vh', overflowY: 'auto' }}>
           <Box
             sx={{
               '& p': { my: 1 },
