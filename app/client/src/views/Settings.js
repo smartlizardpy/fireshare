@@ -86,6 +86,16 @@ const Settings = ({ authenticated }) => {
     }
   }
 
+  const handleCopyRssFeedUrl = () => {
+    const url = `${window.location.origin}/api/feed/rss`
+    navigator.clipboard.writeText(url)
+    setAlert({
+      open: true,
+      type: 'info',
+      message: 'URL copied to clipboard'
+    })
+  }
+
   const handleScan = async () => {
     VideoService.scan().catch((err) =>
       setAlert({
@@ -513,7 +523,7 @@ const Settings = ({ authenticated }) => {
                   variant="outlined"
                   startIcon={<RssFeedIcon />}
                   fullWidth
-                  onClick={() => window.open('/api/feed/rss', '_blank')}
+                  onClick={handleCopyRssFeedUrl}
                   sx={{ borderColor: 'rgba(255, 255, 255, 0.23)', color: '#fff' }}
                 >
                   Open RSS Feed
