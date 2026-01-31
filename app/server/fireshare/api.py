@@ -1603,6 +1603,70 @@ def clear_all_corrupt_status():
     count = clear_all_corrupt_videos()
     return jsonify({'cleared': count})
 
+@api.route('/api/feed/rss')
+def rss_feed():
+    # Base URL for API calls (backend)
+    backend_domain = f"https://{current_app.config['DOMAIN']}" if current_app.config['DOMAIN'] else request.host_url.rstrip('/')
+    
+    # URL for viewing (frontend)
+    # If we are on localhost:5000, the user wants both the link and video to point to the public dev port (3000)
+    frontend_domain = backend_domain
+    if "localhost:5000" in frontend_domain:
+        frontend_domain = frontend_domain.replace("localhost:5000", "localhost:3000")
+    elif "127.0.0.1:5000" in frontend_domain:
+        frontend_domain = frontend_domain.replace("127.0.0.1:5000", "localhost:3000")
+
+    # Load custom RSS config if it exists
+    paths = current_app.config['PATHS']
+    config_path = paths['data'] / 'config.json'
+    rss_title = "Fireshare Feed"
+    rss_description = "Latest videos from Fireshare"
+    if config_path.exists():
+        try:
+            with config_path.open() as f:
+                config = json.load(f)
+                rss_title = config.get("rss_config", {}).get("title", rss_title)
+                rss_description = config.get("rss_config", {}).get("description", rss_description)
+        except:
+            pass
+
+    # Only show public and available videos
+    videos = Video.query.join(VideoInfo).filter(
+        VideoInfo.private.is_(False),
+        Video.available.is_(True)
+    ).order_by(Video.created_at.desc()).limit(50).all()
+    
+    rss_items = []
+    for video in videos:
+        # Construct URLs
+        link = f"{frontend_domain}/#/w/{video.video_id}"
+        # Point both player link and video stream to the frontend port (3000) as requested
+        video_url = f"{frontend_domain}/api/video?id={video.video_id}"
+        poster_url = f"{frontend_domain}/api/video/poster?id={video.video_id}"
+        
+        # XML escaping for description and title is handled by Jinja2 by default, 
+        # but we should ensure dates are in RFC 822 format.
+        item = {
+            'title': video.info.title if video.info else video.video_id,
+            'link': link,
+            'description': video.info.description if video.info and video.info.description else f"Video: {video.info.title if video.info else video.video_id}",
+            'pubDate': video.created_at.strftime('%a, %d %b %Y %H:%M:%S +0000') if video.created_at else '',
+            'guid': video.video_id,
+            'enclosure': {
+                'url': video_url,
+                'type': 'video/mp4' # Or appropriate mimetype
+            },
+            'media_thumbnail': poster_url
+        }
+        rss_items.append(item)
+    
+    now_str = datetime.utcnow().strftime('%a, %d %b %Y %H:%M:%S +0000')
+    
+    return Response(
+        render_template('rss.xml', items=rss_items, domain=frontend_domain, now=now_str, feed_title=rss_title, feed_description=rss_description),
+        mimetype='application/rss+xml'
+    )
+
 @api.after_request
 def after_request(response):
     response.headers.add('Accept-Ranges', 'bytes')

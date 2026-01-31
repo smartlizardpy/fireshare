@@ -125,6 +125,12 @@ Direct links copied from the link copy buttons in Fireshare will allow websites 
 <p align="center">
 <img src=".github/images/ogg-data.png" alt="Logo">
 </p>
+<h2 align="center">RSS Feed Support</h2>
+<p align="center">
+  Stay up to date in your favorite RSS reader. Fireshare publishes a feed of the
+  latest public videos so you can subscribe and get new uploads automatically.
+</p>
+
 
 <h2 align="center">LDAP Authentication Support</h2>
 <p align="center">

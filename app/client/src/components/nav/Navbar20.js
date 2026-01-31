@@ -429,8 +429,8 @@ function Navbar20({
         <Divider />
 
 
-       
-       
+
+
         {folderSize !== null ? (
           open ? (
             <Box
@@ -502,7 +502,7 @@ function Navbar20({
                 </Typography>
               </Box>
             </Tooltip>
-            
+
           )
         ) : (
           <Box
@@ -520,7 +520,7 @@ function Navbar20({
               fontSize: 13,
             }}
           >
-            
+
             {open ? <Typography variant="body2" color="textSecondary">Loading Disk Usage...</Typography> : <SyncIcon
               sx={{
                 animation: "spin 2s linear infinite",
@@ -533,7 +533,7 @@ function Navbar20({
                   },
                 },
               }}
-            /> }
+            />}
           </Box>
 
         )}

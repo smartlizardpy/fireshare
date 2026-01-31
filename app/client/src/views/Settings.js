@@ -14,6 +14,7 @@ import {
 import SnackbarAlert from '../components/alert/SnackbarAlert'
 import SaveIcon from '@mui/icons-material/Save'
 import SensorsIcon from '@mui/icons-material/Sensors'
+import RssFeedIcon from '@mui/icons-material/RssFeed'
 import SportsEsportsIcon from '@mui/icons-material/SportsEsports'
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import VisibilityIcon from '@mui/icons-material/Visibility'
@@ -41,9 +42,18 @@ const Settings = ({ authenticated }) => {
   React.useEffect(() => {
     async function fetch() {
       try {
-        const conf = (await ConfigService.getAdminConfig()).data
-        setConfig(conf)
-        setUpdatedConfig(conf)
+        const res = await ConfigService.getAdminConfig()
+        const conf = _.cloneDeep(res.data)
+
+        // Ensure rss_config exists and has default values for comparison
+        if (!conf.rss_config) {
+          conf.rss_config = { title: '', description: '' }
+        }
+        if (!conf.rss_config.title) conf.rss_config.title = ''
+        if (!conf.rss_config.description) conf.rss_config.description = ''
+
+        setConfig(_.cloneDeep(conf))
+        setUpdatedConfig(_.cloneDeep(conf))
         await checkForWarnings()
       } catch (err) {
         console.error(err)
@@ -53,7 +63,9 @@ const Settings = ({ authenticated }) => {
   }, [])
 
   React.useEffect(() => {
-    setUpdateable(!_.isEqual(config, updatedConfig))
+    if (config && updatedConfig) {
+      setUpdateable(!_.isEqual(config, updatedConfig))
+    }
   }, [updatedConfig, config])
 
   React.useEffect(() => {
@@ -66,11 +78,11 @@ const Settings = ({ authenticated }) => {
     try {
       await ConfigService.updateConfig(updatedConfig)
       setUpdateable(false)
-      setConfig((prev) => ({ ...prev, ...updatedConfig }))
+      setConfig(_.cloneDeep(updatedConfig))
       setAlert({ open: true, message: 'Settings Updated! Changes may take a minute to take effect.', type: 'success' })
     } catch (err) {
       console.error(err)
-      setAlert({ open: true, message: err.response.data, type: 'error' })
+      setAlert({ open: true, message: err.response?.data || 'Error saving settings', type: 'error' })
     }
   }
 
@@ -135,41 +147,41 @@ const Settings = ({ authenticated }) => {
   const checkForWarnings  = async () =>{
       let warnings = await WarningService.getAdminWarnings()
 
-      if (Object.keys(warnings.data).length === 0)
-          return;
+    if (Object.keys(warnings.data).length === 0)
+      return;
 
-      for (const warning of warnings.data) {
-          // Check if this is the SteamGridDB warning
-          if (warning.includes('SteamGridDB API key not configured')) {
-              setAlert({
-                  open: true,
-                  type: 'warning',
-                  message: (
-                      <span>
-                          {warning.replace('Click here to set it up.', '')}
-                          <a
-                              href="#steamgrid-settings"
-                              onClick={(e) => {
-                                  e.preventDefault();
-                                  document.getElementById('steamgrid-api-key-field')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                  document.getElementById('steamgrid-api-key-field')?.focus();
-                              }}
-                              style={{ color: '#2684FF', textDecoration: 'underline', cursor: 'pointer', marginLeft: '4px' }}
-                          >
-                              Click here to set it up.
-                          </a>
-                      </span>
-                  ),
-              });
-          } else {
-              setAlert({
-                  open: true,
-                  type: 'warning',
-                  message: warning,
-              });
-          }
-          await new Promise(r => setTimeout(r, 2000)); //Without this a second Warning would instantly overwrite the first...
+    for (const warning of warnings.data) {
+      // Check if this is the SteamGridDB warning
+      if (warning.includes('SteamGridDB API key not configured')) {
+        setAlert({
+          open: true,
+          type: 'warning',
+          message: (
+            <span>
+              {warning.replace('Click here to set it up.', '')}
+              <a
+                href="#steamgrid-settings"
+                onClick={(e) => {
+                  e.preventDefault();
+                  document.getElementById('steamgrid-api-key-field')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  document.getElementById('steamgrid-api-key-field')?.focus();
+                }}
+                style={{ color: '#2684FF', textDecoration: 'underline', cursor: 'pointer', marginLeft: '4px' }}
+              >
+                Click here to set it up.
+              </a>
+            </span>
+          ),
+        });
+      } else {
+        setAlert({
+          open: true,
+          type: 'warning',
+          message: warning,
+        });
       }
+      await new Promise(r => setTimeout(r, 2000)); //Without this a second Warning would instantly overwrite the first...
+    }
   }
 
   return (
@@ -467,10 +479,50 @@ const Settings = ({ authenticated }) => {
                     ),
                   }}
                 />
+                <Divider />
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant="overline" sx={{ fontWeight: 700, fontSize: 18 }}>
+                    Feeds
+                  </Typography>
+                </Box>
+                <TextField
+                  size="small"
+                  label="RSS Feed Title"
+                  value={updatedConfig.rss_config?.title || ''}
+                  onChange={(e) =>
+                    setUpdatedConfig((prev) => ({
+                      ...prev,
+                      rss_config: { ...(prev.rss_config || {}), title: e.target.value },
+                    }))
+                  }
+                />
+                <TextField
+                  size="small"
+                  label="RSS Feed Description"
+                  multiline
+                  rows={2}
+                  value={updatedConfig.rss_config?.description || ''}
+                  onChange={(e) =>
+                    setUpdatedConfig((prev) => ({
+                      ...prev,
+                      rss_config: { ...(prev.rss_config || {}), description: e.target.value },
+                    }))
+                  }
+                />
+                <Button
+                  variant="outlined"
+                  startIcon={<RssFeedIcon />}
+                  fullWidth
+                  onClick={() => window.open('/api/feed/rss', '_blank')}
+                  sx={{ borderColor: 'rgba(255, 255, 255, 0.23)', color: '#fff' }}
+                >
+                  Open RSS Feed
+                </Button>
+                <Divider />
                 <Button
                   variant="contained"
                   startIcon={<SaveIcon />}
-                  disabled={!updateable || (!isValidDiscordWebhook(discordUrl) && isDiscordUsed) }
+                  disabled={!updateable || (!isValidDiscordWebhook(discordUrl) && isDiscordUsed)}
                   onClick={handleSave}
                 >
                   Save Changes

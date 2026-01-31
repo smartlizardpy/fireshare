@@ -15,6 +15,10 @@ DEFAULT_CONFIG = {
   "integrations": {
     "discord_webhook_url": "",
     "steamgriddb_api_key": "",
+  },
+  "rss_config": {
+    "title": "Fireshare Feed",
+    "description": "Latest videos from Fireshare"
   }
 }
 
