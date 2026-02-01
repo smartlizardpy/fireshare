@@ -1,8 +1,8 @@
 import React from 'react'
+import ReactDOM from 'react-dom'
 import {
   Box,
   Grid,
-  Stack,
   IconButton,
   Button,
   Dialog,
@@ -60,6 +60,7 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle, showRelease
   const [showAddNewGame, setShowAddNewGame] = React.useState(false)
   const [featureAlertOpen, setFeatureAlertOpen] = React.useState(showReleaseNotes)
   const releaseNotes = releaseNotesProp
+  const [toolbarTarget, setToolbarTarget] = React.useState(null)
 
   if (searchText !== search) {
     setSearch(searchText)
@@ -105,6 +106,10 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle, showRelease
   React.useEffect(() => {
     fetchVideos()
     // eslint-disable-next-line
+  }, [])
+
+  React.useEffect(() => {
+    setToolbarTarget(document.getElementById('navbar-toolbar-extra'))
   }, [])
 
   const handleFeatureAlertClose = () => {
@@ -295,31 +300,34 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle, showRelease
       <SnackbarAlert severity={alert.type} open={alert.open} setOpen={(open) => setAlert({ ...alert, open })}>
         {alert.message}
       </SnackbarAlert>
+      {toolbarTarget && ReactDOM.createPortal(
+        <Box sx={{ minWidth: 200 }}>
+          <Select
+            value={dateSortOrder}
+            options={SORT_OPTIONS}
+            onChange={setDateSortOrder}
+            styles={selectSortTheme}
+            menuPortalTarget={document.body}
+            menuPosition="fixed"
+            blurInputOnSelect
+            isSearchable={false}
+          />
+        </Box>,
+        toolbarTarget,
+      )}
       <Box sx={{ height: '100%' }}>
         <Grid container item justifyContent="center">
           <Grid item xs={12}>
             <Grid container justifyContent="center">
               <Grid item xs={11} sm={9} md={7} lg={5} sx={{ mb: 2 }}>
-                <Stack direction="row" spacing={1}>
-                  <Box sx={{ flexGrow: 1 }}>
-                    <Select
-                      value={selectedFolder}
-                      options={createSelectFolders(folders)}
-                      onChange={handleFolderSelection}
-                      styles={selectFolderTheme}
-                      blurInputOnSelect
-                      isSearchable={false}
-                    />
-                  </Box>
-                  <Select
-                    value={dateSortOrder}
-                    options={SORT_OPTIONS}
-                    onChange={setDateSortOrder}
-                    styles={selectSortTheme}
-                    blurInputOnSelect
-                    isSearchable={false}
-                  />
-                </Stack>
+                <Select
+                  value={selectedFolder}
+                  options={createSelectFolders(folders)}
+                  onChange={handleFolderSelection}
+                  styles={selectFolderTheme}
+                  blurInputOnSelect
+                  isSearchable={false}
+                />
               </Grid>
             </Grid>
             {/* Edit mode buttons */}
