@@ -44,6 +44,7 @@ import SnackbarAlert from '../alert/SnackbarAlert'
 import { getSetting, setSetting } from '../../common/utils'
 import SliderWrapper from '../misc/SliderWrapper'
 import GameScanStatus from './GameScanStatus'
+import TranscodingStatus from './TranscodingStatus'
 import FolderSuggestionInline from './FolderSuggestionInline'
 import { GameService } from '../../services'
 
@@ -382,6 +383,7 @@ function Navbar20({
       <Divider />
       <Box sx={{ width: '100%', bottom: 0, position: 'absolute' }}>
         <GameScanStatus open={open} onComplete={handleGameScanComplete} />
+        <TranscodingStatus open={open} />
         <FolderSuggestionInline
           open={open}
           suggestion={currentSuggestionFolder ? folderSuggestions[currentSuggestionFolder] : null}

@@ -638,7 +638,7 @@ const Settings = ({ authenticated }) => {
                           onClick={async () => {
                             try {
                               await ConfigService.startTranscoding()
-                              setAlert({ open: true, message: 'Transcoding started', type: 'success' })
+                              window.dispatchEvent(new Event('transcodingStarted'))
                               fetchRunningStatus()
                             } catch (err) {
                               setAlert({ open: true, message: err.response?.data || 'Failed to start', type: 'error' })
@@ -656,7 +656,7 @@ const Settings = ({ authenticated }) => {
                           onClick={async () => {
                             try {
                               await ConfigService.cancelTranscoding()
-                              setAlert({ open: true, message: 'Transcoding cancelled', type: 'info' })
+                              window.dispatchEvent(new Event('transcodingCancelled'))
                               fetchRunningStatus()
                             } catch (err) {
                               setAlert({ open: true, message: err.response?.data || 'Failed to cancel', type: 'error' })

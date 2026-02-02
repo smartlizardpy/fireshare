@@ -116,7 +116,7 @@ export const getVideoUrl = (videoId, quality, extension) => {
   const URL = getUrl()
   const SERVED_BY = getServedBy()
   
-  if (quality === '720p' || quality === '1080p') {
+  if (quality === '480p' || quality === '720p' || quality === '1080p') {
     if (SERVED_BY === 'nginx') {
       return `${URL}/_content/derived/${videoId}/${videoId}-${quality}.mp4`
     }
@@ -141,11 +141,19 @@ export const getVideoUrl = (videoId, quality, extension) => {
  */
 export const getVideoSources = (videoId, videoInfo, extension) => {
   const sources = []
-  
+
+  const has480p = videoInfo?.has_480p
   const has720p = videoInfo?.has_720p
   const has1080p = videoInfo?.has_1080p
-  
-  // Add 720p
+
+  if (has480p) {
+    sources.push({
+      src: getVideoUrl(videoId, '480p', extension),
+      type: 'video/mp4',
+      label: '480p',
+    })
+  }
+
   if (has720p) {
     sources.push({
       src: getVideoUrl(videoId, '720p', extension),
@@ -153,8 +161,7 @@ export const getVideoSources = (videoId, videoInfo, extension) => {
       label: '720p',
     })
   }
-  
-  // Add 1080p
+
   if (has1080p) {
     sources.push({
       src: getVideoUrl(videoId, '1080p', extension),
@@ -163,12 +170,11 @@ export const getVideoSources = (videoId, videoInfo, extension) => {
     })
   }
 
-  // Add original quality - always selected by default
   sources.push({
     src: getVideoUrl(videoId, 'original', extension),
     type: 'video/mp4',
     label: 'Original',
-    selected: true, // Always default to original quality
+    selected: true,
   })
 
   return sources

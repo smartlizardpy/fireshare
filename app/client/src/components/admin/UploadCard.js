@@ -82,6 +82,7 @@ const UploadCard = ({ authenticated, feedView = false, publicUpload = false, fet
           open: true,
           onClose: () => fetchVideos(),
         })
+        setTimeout(() => window.dispatchEvent(new Event('transcodingStarted')), 5000)
       } catch (err) {
         handleAlert({
           type: 'error',
@@ -133,6 +134,7 @@ const UploadCard = ({ authenticated, feedView = false, publicUpload = false, fet
           open: true,
           onClose: () => fetchVideos(),
         });
+        setTimeout(() => window.dispatchEvent(new Event('transcodingStarted')), 5000)
       } catch (err) {
         handleAlert({
           type: 'error',

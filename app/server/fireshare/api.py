@@ -298,16 +298,16 @@ def get_transcoding_status():
     gpu_enabled = current_app.config.get('TRANSCODE_GPU', False)
     paths = current_app.config['PATHS']
 
-    # Check if transcoding is currently running
-    is_running = _transcoding_process is not None and _transcoding_process.poll() is None
-
-    # Read progress from status file
+    subprocess_running = _transcoding_process is not None and _transcoding_process.poll() is None
     progress = util.read_transcoding_status(paths['data'])
+    is_running = subprocess_running or progress.get('is_running', False)
 
-    # If process ended but status file still exists, clean it up
-    if not is_running and progress.get('is_running'):
-        util.clear_transcoding_status(paths['data'])
-        progress = {"current": 0, "total": 0, "current_video": None}
+    if not subprocess_running and _transcoding_process is not None:
+        _transcoding_process = None
+        if progress.get('is_running'):
+            util.clear_transcoding_status(paths['data'])
+            progress = {"current": 0, "total": 0, "current_video": None}
+            is_running = False
 
     return jsonify({
         "enabled": enabled,

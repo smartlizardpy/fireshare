@@ -419,6 +419,12 @@ def scan_video(ctx, path):
                         logger.info(f"Posting to Discord webhook")
                         video_url = get_public_watch_url(video_id, config, domain)
                         send_discord_webhook(webhook_url=discord_webhook_url, video_url=video_url)
+
+                    if current_app.config.get('ENABLE_TRANSCODING'):
+                        auto_transcode = config.get('transcoding', {}).get('auto_transcode', True)
+                        if auto_transcode:
+                            logger.info(f"Auto-transcoding uploaded video {video_id}")
+                            ctx.invoke(transcode_videos, video=video_id)
                 else:
                     logger.warning(f"Skipping creation of poster for video {info.video_id} because the video at {str(video_path)} does not exist or is not accessible")
         else:
@@ -643,8 +649,8 @@ def transcode_videos(regenerate, video, include_corrupt):
         util.write_transcoding_status(paths['data'], 0, total_videos)
 
         for idx, vi in enumerate(vinfos, 1):
-            # Update transcoding progress
-            util.write_transcoding_status(paths['data'], idx, total_videos, vi.video_id)
+            # Update transcoding progress with the video title
+            util.write_transcoding_status(paths['data'], idx, total_videos, vi.title)
             derived_path = Path(processed_root, "derived", vi.video_id)
             video_path = Path(processed_root, "video_links", vi.video_id + vi.video.extension)
             
