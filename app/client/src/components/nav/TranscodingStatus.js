@@ -4,13 +4,11 @@ import Typography from '@mui/material/Typography'
 import Tooltip from '@mui/material/Tooltip'
 import { ConfigService } from '../../services'
 
-const TranscodingStatus = ({ open, onComplete }) => {
+const TranscodingStatus = ({ open }) => {
   const [status, setStatus] = React.useState(null)
   const [isPolling, setIsPolling] = React.useState(false)
   const [stoppedMessage, setStoppedMessage] = React.useState(null)
-  const completionHandledRef = React.useRef(false)
 
-  // Check status once on mount to catch already-running transcodes
   React.useEffect(() => {
     const checkInitial = async () => {
       try {
@@ -19,37 +17,30 @@ const TranscodingStatus = ({ open, onComplete }) => {
           setStatus(res.data)
           setIsPolling(true)
         }
-      } catch (e) {
-        console.error('[TranscodingStatus] Error checking initial status:', e)
-      }
+      } catch (e) {}
     }
     checkInitial()
   }, [])
 
-  // Listen for event from Settings when transcoding starts
   React.useEffect(() => {
-    const handleTranscodingStarted = () => {
+    const handleStart = () => {
       setStoppedMessage(null)
       setIsPolling(true)
-      completionHandledRef.current = false
     }
-    window.addEventListener('transcodingStarted', handleTranscodingStarted)
-    return () => window.removeEventListener('transcodingStarted', handleTranscodingStarted)
-  }, [])
-
-  // Listen for event from Settings when transcoding is cancelled
-  React.useEffect(() => {
-    const handleTranscodingCancelled = () => {
+    const handleCancel = () => {
       setIsPolling(false)
       setStatus(null)
       setStoppedMessage('Transcoding stopped')
       setTimeout(() => setStoppedMessage(null), 3000)
     }
-    window.addEventListener('transcodingCancelled', handleTranscodingCancelled)
-    return () => window.removeEventListener('transcodingCancelled', handleTranscodingCancelled)
+    window.addEventListener('transcodingStarted', handleStart)
+    window.addEventListener('transcodingCancelled', handleCancel)
+    return () => {
+      window.removeEventListener('transcodingStarted', handleStart)
+      window.removeEventListener('transcodingCancelled', handleCancel)
+    }
   }, [])
 
-  // Only poll when isPolling is true
   React.useEffect(() => {
     if (!isPolling) return
 
@@ -57,28 +48,21 @@ const TranscodingStatus = ({ open, onComplete }) => {
       try {
         const res = await ConfigService.getTranscodingStatus()
         if (res.data.is_running) {
-          completionHandledRef.current = false
           setStatus(res.data)
-        } else if (!completionHandledRef.current) {
-          // Transcoding finished
-          completionHandledRef.current = true
-          onComplete?.(res.data)
+        } else {
           setStatus(null)
           setIsPolling(false)
         }
-      } catch (e) {
-        console.error('[TranscodingStatus] Error checking status:', e)
-      }
+      } catch (e) {}
     }
 
     checkStatus()
     const interval = setInterval(checkStatus, 3000)
     return () => clearInterval(interval)
-  }, [isPolling, onComplete])
+  }, [isPolling])
 
   if (!status && !stoppedMessage) return null
 
-  // Show stopped message briefly after cancellation
   if (stoppedMessage) {
     return (
       <Box sx={{ pl: 2, pr: 2, pb: 1 }}>
