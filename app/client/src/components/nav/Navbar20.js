@@ -367,7 +367,6 @@ function Navbar20({
       )}
       <Divider />
       <Box sx={{ width: '100%', bottom: 0, position: 'absolute' }}>
-        <DiskSpaceIndicator open={open} />
         <GameScanStatus open={open} onComplete={handleGameScanComplete} />
         <FolderSuggestionInline
           open={open}
@@ -376,6 +375,7 @@ function Navbar20({
           onApplied={handleFolderSuggestionApplied}
           onDismiss={handleFolderSuggestionClose}
         />
+        <DiskSpaceIndicator open={open} />
         <List sx={{ pl: 1, pr: 1 }}>
           {authenticated && (
             <ListItem disablePadding>
