@@ -45,6 +45,7 @@ import { getSetting, setSetting } from '../../common/utils'
 import SliderWrapper from '../misc/SliderWrapper'
 import GameScanStatus from './GameScanStatus'
 import FolderSuggestionInline from './FolderSuggestionInline'
+import DiskSpaceIndicator from './DiskSpaceIndicator'
 import { GameService } from '../../services'
 
 const drawerWidth = 240
@@ -366,6 +367,7 @@ function Navbar20({
       )}
       <Divider />
       <Box sx={{ width: '100%', bottom: 0, position: 'absolute' }}>
+        <DiskSpaceIndicator open={open} />
         <GameScanStatus open={open} onComplete={handleGameScanComplete} />
         <FolderSuggestionInline
           open={open}

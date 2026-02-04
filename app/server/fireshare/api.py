@@ -277,6 +277,30 @@ def get_warnings():
         else:
             return jsonify(warnings)
 
+@api.route('/api/folder-size')
+@login_required
+def get_folder_size():
+    """
+    Get disk space information for the videos path.
+    Returns total, used, free space in bytes and usage percentage.
+    """
+    try:
+        paths = current_app.config['PATHS']
+        video_path = paths['videos']
+        
+        # Get disk usage statistics
+        usage = shutil.disk_usage(video_path)
+        
+        return jsonify({
+            'total': usage.total,
+            'used': usage.used,
+            'free': usage.free,
+            'percent_used': round((usage.used / usage.total) * 100, 1)
+        })
+    except Exception as e:
+        logger.error(f"Error getting folder size: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @api.route('/api/admin/reset-database', methods=["POST"])
 @login_required
 def reset_database():
