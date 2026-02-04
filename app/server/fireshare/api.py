@@ -297,6 +297,9 @@ def folder_size():
 
         if size_mb < 1024:
             rounded_mb = round(size_mb / 100) * 100
+            # Ensure we show at least some value for non-zero folders
+            if rounded_mb == 0 and size_bytes > 0:
+                rounded_mb = round(size_mb)
             size_pretty = f"{rounded_mb} MB"
         elif size_mb < 1024 * 1024:
             size_gb = size_mb / 1024
