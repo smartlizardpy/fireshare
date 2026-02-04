@@ -45,6 +45,7 @@ import { getSetting, setSetting } from '../../common/utils'
 import SliderWrapper from '../misc/SliderWrapper'
 import GameScanStatus from './GameScanStatus'
 import FolderSuggestionInline from './FolderSuggestionInline'
+import DiskSpaceIndicator from './DiskSpaceIndicator'
 import { GameService } from '../../services'
 
 const drawerWidth = 240
@@ -374,6 +375,7 @@ function Navbar20({
           onApplied={handleFolderSuggestionApplied}
           onDismiss={handleFolderSuggestionClose}
         />
+        <DiskSpaceIndicator open={open} visible={authenticated} />
         <List sx={{ pl: 1, pr: 1 }}>
           {authenticated && (
             <ListItem disablePadding>
