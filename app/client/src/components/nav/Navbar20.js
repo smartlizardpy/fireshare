@@ -375,7 +375,7 @@ function Navbar20({
           onApplied={handleFolderSuggestionApplied}
           onDismiss={handleFolderSuggestionClose}
         />
-        <DiskSpaceIndicator open={open} />
+        <DiskSpaceIndicator open={open} visible={authenticated} />
         <List sx={{ pl: 1, pr: 1 }}>
           {authenticated && (
             <ListItem disablePadding>
