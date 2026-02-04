@@ -79,7 +79,7 @@ export default function App() {
             path="/games"
             element={
               <AuthWrapper>
-                <Navbar20 page="/games" collapsed={!drawerOpen} searchable>
+                <Navbar20 page="/games" collapsed={!drawerOpen} searchable searchPlaceholder="Search games...">
                   <Games />
                 </Navbar20>
               </AuthWrapper>

@@ -140,6 +140,7 @@ function Navbar20({
   page,
   collapsed = false,
   searchable = false,
+  searchPlaceholder = 'Search videos...',
   styleToggle = false,
   cardSlider = false,
   toolbar = true,
@@ -532,7 +533,7 @@ function Navbar20({
             </IconButton>
             {searchable && (
               <Search
-                placeholder={`Search videos...`}
+                placeholder={searchPlaceholder}
                 searchHandler={(value) => setSearchText(value)}
                 sx={{ flexGrow: 1, minWidth: 0, ml: { xs: 0, sm: 2 } }}
               />

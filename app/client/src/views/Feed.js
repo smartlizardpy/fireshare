@@ -1,5 +1,6 @@
 import React from 'react'
-import { Box, Grid, Stack } from '@mui/material'
+import ReactDOM from 'react-dom'
+import { Box, Grid } from '@mui/material'
 import { useLocation } from 'react-router-dom'
 import VideoCards from '../components/admin/VideoCards'
 import VideoList from '../components/admin/VideoList'
@@ -43,6 +44,11 @@ const Feed = ({ authenticated, searchText, cardSize, listStyle }) => {
 
   const [prevCardSize, setPrevCardSize] = React.useState(cardSize)
   const [prevListStyle, setPrevListStyle] = React.useState(listStyle)
+  const [toolbarTarget, setToolbarTarget] = React.useState(null)
+
+  React.useEffect(() => {
+    setToolbarTarget(document.getElementById('navbar-toolbar-extra'))
+  }, [])
 
   if (searchText !== search) {
     setSearch(searchText)
@@ -141,34 +147,35 @@ const Feed = ({ authenticated, searchText, cardSize, listStyle }) => {
       <SnackbarAlert severity={alert.type} open={alert.open} setOpen={(open) => setAlert({ ...alert, open })}>
         {alert.message}
       </SnackbarAlert>
+      {toolbarTarget && ReactDOM.createPortal(
+        <Box sx={{ minWidth: 200 }}>
+          <Select
+            value={sortOrder}
+            options={SORT_OPTIONS}
+            onChange={setSortOrder}
+            styles={selectSortTheme}
+            menuPortalTarget={document.body}
+            menuPosition="fixed"
+            blurInputOnSelect
+            isSearchable={false}
+          />
+        </Box>,
+        toolbarTarget,
+      )}
       <Box sx={{ height: '100%' }}>
         <Grid container item justifyContent="center">
           <Grid item xs={12}>
             <Grid container justifyContent="center">
-              {videos && videos.length !== 0 && (
-                <Grid item xs={11} sm={9} md={7} lg={5} sx={{ mb: 3 }}>
-                  <Stack direction="row" spacing={1}>
-                    <Box sx={{ flexGrow: 1 }}>
-                      <Select
-                        value={selectedFolder}
-                        options={createSelectFolders(folders)}
-                        onChange={handleFolderSelection}
-                        styles={selectFolderTheme}
-                        blurInputOnSelect
-                        isSearchable={false}
-                      />
-                    </Box>
-                    <Select
-                      value={sortOrder}
-                      options={SORT_OPTIONS}
-                      onChange={setSortOrder}
-                      styles={selectSortTheme}
-                      blurInputOnSelect
-                      isSearchable={false}
-                    />
-                  </Stack>
-                </Grid>
-              )}
+              <Grid item xs={11} sm={9} md={7} lg={5} sx={{ mb: 2 }}>
+                <Select
+                  value={selectedFolder}
+                  options={createSelectFolders(folders)}
+                  onChange={handleFolderSelection}
+                  styles={selectFolderTheme}
+                  blurInputOnSelect
+                  isSearchable={false}
+                />
+              </Grid>
             </Grid>
             <Box>
               {listStyle === 'list' && (
