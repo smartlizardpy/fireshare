@@ -289,33 +289,26 @@ def get_folder_size(folder_path):
 @api.route('/api/folder-size', methods=['GET'])
 @login_required
 def folder_size():
-    try:
-        paths = current_app.config['PATHS']
-        path = paths['videos']
-        size_bytes = get_folder_size(path)
-        size_mb = size_bytes / (1024 * 1024)
+    print("Folder size endpoint was hit!")  # Debugging line
+    path = request.args.get('path', default='.', type=str)
+    size_bytes = get_folder_size(path)
+    size_mb = size_bytes / (1024 * 1024)
 
-        if size_mb < 1024:
-            rounded_mb = round(size_mb / 100) * 100
-            # Ensure we show at least some value for non-zero folders
-            if rounded_mb == 0 and size_bytes > 0:
-                rounded_mb = round(size_mb)
-            size_pretty = f"{rounded_mb} MB"
-        elif size_mb < 1024 * 1024:
-            size_gb = size_mb / 1024
-            size_pretty = f"{round(size_gb, 1)} GB"
-        else:
-            size_tb = size_mb / (1024 * 1024)
-            size_pretty = f"{round(size_tb, 1)} TB"
+    if size_mb < 1024:
+        rounded_mb = round(size_mb / 100) * 100
+        size_pretty = f"{rounded_mb} MB"
+    elif size_mb < 1024 * 1024:
+        size_gb = size_mb / 1024
+        size_pretty = f"{round(size_gb, 1)} GB"
+    else:
+        size_tb = size_mb / (1024 * 1024)
+        size_pretty = f"{round(size_tb, 1)} TB"
 
-        return jsonify({
-            "folder": str(path),
-            "size_bytes": size_bytes,
-            "size_pretty": size_pretty
-        })
-    except Exception as e:
-        logger.error(f"Error getting folder size: {e}")
-        return jsonify({'error': str(e)}), 500
+    return jsonify({
+        "folder": path,
+        "size_bytes": size_bytes,
+        "size_pretty": size_pretty
+    })
 
 @api.route('/api/admin/reset-database', methods=["POST"])
 @login_required
