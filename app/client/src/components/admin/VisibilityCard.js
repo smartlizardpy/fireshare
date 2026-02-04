@@ -1,6 +1,6 @@
 import React, { useRef } from 'react'
 import { useIsVisible } from 'react-is-visible'
-import { Grid } from '@mui/material'
+import { Box, Grid } from '@mui/material'
 import CompactVideoCard from './CompactVideoCard'
 
 const VisibilityCard = ({
@@ -14,6 +14,8 @@ const VisibilityCard = ({
   editMode = false,
   isSelected = false,
   onSelect = () => {},
+  dateLabel = null,
+  reserveDateSpace = false,
 }) => {
   const nodeRef = useRef()
   const isVisible = useIsVisible(nodeRef)
@@ -22,7 +24,32 @@ const VisibilityCard = ({
     video.info?.width && video.info?.height ? cardWidth * (video.info.height / video.info.width) : cardWidth / 1.77
 
   return (
-    <Grid item sx={{ width: cardWidth, ml: 0.75, mr: 0.75, mb: 1.5 }} ref={nodeRef}>
+    <Grid
+      item
+      sx={{
+        width: cardWidth,
+        ml: 0.75,
+        mr: 0.75,
+        mb: 3,
+        position: 'relative',
+      }}
+      ref={nodeRef}
+    >
+      {reserveDateSpace && (
+        <Box
+          sx={{
+            color: '#ffffff',
+            fontSize: 16,
+            fontWeight: 700,
+            letterSpacing: -1,
+            opacity: 0.8,
+            mb: 1,
+            height: 20,
+          }}
+        >
+          {dateLabel || ''}
+        </Box>
+      )}
       {isVisible ? (
         <CompactVideoCard
           visible={false}

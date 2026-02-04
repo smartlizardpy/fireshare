@@ -93,7 +93,6 @@ The goal of Fireshare is to provide a very simple and easy way for you to share 
 
 <h2 align="center">Uploading</h2>
 <p align="center">Allow your community or the public the ability to upload videos. Of course, this feature can be disabled or limited to only administrator access</p>
-![Uploading Gamestab.png…]()
 
 ![uploading]
 
@@ -126,6 +125,12 @@ Direct links copied from the link copy buttons in Fireshare will allow websites 
 <p align="center">
 <img src=".github/images/ogg-data.png" alt="Logo">
 </p>
+<h2 align="center">RSS Feed Support</h2>
+<p align="center">
+  Stay up to date in your favorite RSS reader. Fireshare publishes a feed of the
+  latest public videos so you can subscribe and get new uploads automatically.
+</p>
+
 
 <h2 align="center">LDAP Authentication Support</h2>
 <p align="center">

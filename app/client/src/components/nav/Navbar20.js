@@ -45,6 +45,7 @@ import { getSetting, setSetting } from '../../common/utils'
 import SliderWrapper from '../misc/SliderWrapper'
 import GameScanStatus from './GameScanStatus'
 import FolderSuggestionInline from './FolderSuggestionInline'
+import DiskSpaceIndicator from './DiskSpaceIndicator'
 import { GameService } from '../../services'
 
 const drawerWidth = 240
@@ -134,12 +135,15 @@ const AppBar = styled(MuiAppBar, {
 
 function Navbar20({
   authenticated,
+  showReleaseNotes,
+  releaseNotes,
   page,
   collapsed = false,
   searchable = false,
   styleToggle = false,
   cardSlider = false,
   toolbar = true,
+  mainPadding = 3,
   children,
 }) {
 
@@ -200,21 +204,6 @@ function Navbar20({
     left: 0,
     top: 13,
   }))
-
-  const [folderSize, setFolderSize] = React.useState(null); // Disk Usage Service
-
-  React.useEffect(() => {
-    const fetchFolderSize = async () => {
-      try {
-        const data = await StatsService.getFolderSize();
-        setFolderSize(data.size_pretty);
-      } catch (error) {
-        console.error('Error fetching folder size:', error);
-      }
-    };
-
-    fetchFolderSize();
-  }, []);
 
   // Load pending folder suggestions on mount
   React.useEffect(() => {
@@ -386,6 +375,7 @@ function Navbar20({
           onApplied={handleFolderSuggestionApplied}
           onDismiss={handleFolderSuggestionClose}
         />
+        <DiskSpaceIndicator open={open} visible={authenticated} />
         <List sx={{ pl: 1, pr: 1 }}>
           {authenticated && (
             <ListItem disablePadding>
@@ -424,117 +414,6 @@ function Navbar20({
           )}
         </List>
         <Divider />
-
-
-       
-       
-        {folderSize !== null ? (
-          open ? (
-            <Box
-              sx={{
-                width: 222,
-                m: 1,
-                height: 40,
-                border: '1px solid rgba(194, 224, 255, 0.18)',
-                borderRadius: '8px',
-                display: 'flex',
-                alignItems: 'center',
-                pl: 2,
-                pr: 2,
-                color: '#EBEBEB',
-                fontWeight: 600,
-                fontSize: 13,
-                backgroundColor: 'transparent',
-                ':hover': {
-                  backgroundColor: 'rgba(194, 224, 255, 0.08)',
-                },
-              }}
-            >
-              <Grid container alignItems="center">
-                <Grid item>
-                  <Typography
-                    sx={{
-                      fontFamily: 'monospace',
-                      fontWeight: 600,
-                      fontSize: 12,
-                      color: '#EBEBEB',
-                    }}
-                  >
-                    Disk Usage:{' '}
-                    <Box component="span" sx={{ color: '#2684FF' }}>
-                      {folderSize}
-                    </Box>
-                  </Typography>
-                </Grid>
-              </Grid>
-            </Box>
-          ) : (
-            <Tooltip title={`Disk Usage: ${folderSize}`} arrow placement="right">
-              <Box
-                sx={{
-                  width: 42,
-                  m: 1,
-                  height: 40,
-                  border: '1px solid rgba(194, 224, 255, 0.18)',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  ':hover': {
-                    backgroundColor: 'rgba(194, 224, 255, 0.08)',
-                  },
-                }}
-              >
-                <Typography
-                  sx={{
-                    fontFamily: 'monospace',
-                    fontWeight: 600,
-                    fontSize: 15,
-                    color: '#EBEBEB',
-                  }}
-                >
-                  <IconButton sx={{ p: 0.5, pointerEvents: 'all' }}>
-                    <StorageIcon sx={{ color: '#EBEBEB' }} />
-                  </IconButton>
-                </Typography>
-              </Box>
-            </Tooltip>
-            
-          )
-        ) : (
-          <Box
-            sx={{
-              width: open ? 222 : 42,
-              m: 1,
-              height: 40,
-              border: '1px solid rgba(194, 224, 255, 0.18)',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#888',
-              fontWeight: 600,
-              fontSize: 13,
-            }}
-          >
-            
-            {open ? <Typography variant="body2" color="textSecondary">Loading Disk Usage...</Typography> : <SyncIcon
-              sx={{
-                animation: "spin 2s linear infinite",
-                "@keyframes spin": {
-                  "0%": {
-                    transform: "rotate(360deg)",
-                  },
-                  "100%": {
-                    transform: "rotate(0deg)",
-                  },
-                },
-              }}
-            /> }
-          </Box>
-
-        )}
-
         {open ? (
           <Box
             sx={{
@@ -641,7 +520,7 @@ function Navbar20({
           >
             <IconButton onClick={handleDrawerCollapse}>{open ? <ChevronLeftIcon /> : <ChevronRightIcon />}</IconButton>
           </DrawerControl>
-          <Toolbar sx={{ backgroundColor: 'rgba(0,0,0,0)' }}>
+          <Toolbar sx={{ backgroundColor: 'rgba(0,0,0,0)', gap: 2 }}>
             <IconButton
               color="inherit"
               aria-label="open drawer"
@@ -655,9 +534,10 @@ function Navbar20({
               <Search
                 placeholder={`Search videos...`}
                 searchHandler={(value) => setSearchText(value)}
-                sx={{ width: '100%', ml: { xs: 0, sm: 2 } }}
+                sx={{ flexGrow: 1, minWidth: 0, ml: { xs: 0, sm: 2 } }}
               />
             )}
+            <Box id="navbar-toolbar-extra" sx={{ display: 'flex', alignItems: 'center' }} />
           </Toolbar>
         </AppBar>
       )}
@@ -696,7 +576,7 @@ function Navbar20({
         component="main"
         sx={{
           flexGrow: 1,
-          p: page !== '/w' ? 3 : 0,
+          p: page !== '/w' ? mainPadding : 0,
           width: { sm: `calc(100% - ${open ? drawerWidth : minimizedDrawerWidth}px)` },
         }}
       >
@@ -704,7 +584,7 @@ function Navbar20({
         <SnackbarAlert severity={alert.type} open={alert.open} setOpen={(open) => setAlert({ ...alert, open })}>
           {alert.message}
         </SnackbarAlert>
-        {React.cloneElement(children, { authenticated, searchText, listStyle, cardSize })}
+        {React.cloneElement(children, { authenticated, searchText, listStyle, cardSize, showReleaseNotes, releaseNotes })}
       </Box>
     </Box>
   )

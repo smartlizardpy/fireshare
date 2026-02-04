@@ -3,6 +3,7 @@ const selectTheme = {
     ...styles,
     backgroundColor: '#001E3C',
     borderColor: '#2684FF',
+    borderRadius: 10,
     '&:hover': {
       borderColor: '#2684FF',
     },
@@ -16,6 +17,10 @@ const selectTheme = {
     '&:hover': {
       borderColor: '#2684FF',
     },
+  }),
+  menuPortal: (styles) => ({
+    ...styles,
+    zIndex: 2000,
   }),
   menuList: (styles) => ({
     ...styles,

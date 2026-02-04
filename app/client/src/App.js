@@ -89,7 +89,7 @@ export default function App() {
             path="/games/:gameId"
             element={
               <AuthWrapper>
-                <Navbar20 page="/games" collapsed={!drawerOpen} styleToggle cardSlider searchable>
+                <Navbar20 page="/games" collapsed={!drawerOpen} styleToggle cardSlider searchable mainPadding={0}>
                   <GameVideos />
                 </Navbar20>
               </AuthWrapper>

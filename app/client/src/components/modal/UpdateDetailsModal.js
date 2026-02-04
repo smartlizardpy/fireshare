@@ -22,9 +22,17 @@ const style = {
   p: 4,
 }
 
-const UpdateDetailsModal = ({ open, close, videoId, currentTitle, currentDescription, alertHandler }) => {
+const formatDateTimeLocal = (isoString) => {
+  if (!isoString) return ''
+  const date = new Date(isoString)
+  const pad = (n) => n.toString().padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+const UpdateDetailsModal = ({ open, close, videoId, currentTitle, currentDescription, currentRecordedAt, alertHandler }) => {
   const [title, setTitle] = React.useState(currentTitle)
   const [description, setDescription] = React.useState(currentDescription)
+  const [recordedAt, setRecordedAt] = React.useState(formatDateTimeLocal(currentRecordedAt))
   const [confirmDelete, setConfirmDelete] = React.useState(false)
 
   const onTitleChange = (e) => setTitle(e.target.value)
@@ -39,6 +47,7 @@ const UpdateDetailsModal = ({ open, close, videoId, currentTitle, currentDescrip
     const update = {
       title: title || currentTitle,
       description: description || currentDescription,
+      recorded_at: recordedAt ? new Date(recordedAt).toISOString() : null,
     }
     try {
       await VideoService.updateDetails(videoId, update)
@@ -79,9 +88,10 @@ const UpdateDetailsModal = ({ open, close, videoId, currentTitle, currentDescrip
     function update() {
       setTitle(currentTitle)
       setDescription(currentDescription)
+      setRecordedAt(formatDateTimeLocal(currentRecordedAt))
     }
     update()
-  }, [currentTitle, currentDescription])
+  }, [currentTitle, currentDescription, currentRecordedAt])
 
   return (
     <Modal
@@ -105,6 +115,15 @@ const UpdateDetailsModal = ({ open, close, videoId, currentTitle, currentDescrip
             onChange={onDescriptionChange}
             multiline
             rows={4}
+          />
+          <TextField
+            id="modal-update-details-recorded-at"
+            label="Recorded Date"
+            type="datetime-local"
+            value={recordedAt}
+            onChange={(e) => setRecordedAt(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            fullWidth
           />
           <Button variant="contained" onClick={handleSave}>
             Save

@@ -11,12 +11,12 @@ from flask_login import current_user, login_required
 from flask_cors import CORS
 from sqlalchemy.sql import text
 from pathlib import Path
-import time
+import requests
 from werkzeug.utils import secure_filename
 
 
 from . import db, logger
-from .models import Video, VideoInfo, VideoView, GameMetadata, VideoGameLink
+from .models import User, Video, VideoInfo, VideoView, GameMetadata, VideoGameLink
 from .constants import SUPPORTED_FILE_TYPES
 from datetime import datetime
 
@@ -60,6 +60,29 @@ def get_steamgriddb_api_key():
     # Fall back to environment variable
     return os.environ.get('STEAMGRIDDB_API_KEY', '')
 
+def login_required_unless_public_game_tag(func):
+    """
+    Decorator that requires login unless public game tagging is enabled in config.
+    """
+    from functools import wraps
+    @wraps(func)
+    def decorated_view(*args, **kwargs):
+        from flask_login import current_user
+        paths = current_app.config['PATHS']
+        config_path = paths['data'] / 'config.json'
+        allow_public = False
+        if config_path.exists():
+            try:
+                with open(config_path, 'r') as configfile:
+                    config = json.load(configfile)
+                    allow_public = config.get('app_config', {}).get('allow_public_game_tag', False)
+            except:
+                pass
+        if not current_user.is_authenticated and not allow_public:
+            return current_app.login_manager.unauthorized()
+        return func(*args, **kwargs)
+    return decorated_view
+
 def get_video_path(id, subid=None, quality=None):
     video = Video.query.filter_by(video_id=id).first()
     if not video:
@@ -97,9 +120,121 @@ def config():
     config = json.load(file)
     file.close()
     if config_path.exists():
-        return config["ui_config"]
+        # Return ui_config plus specific app_config settings that are needed publicly
+        public_config = config["ui_config"].copy()
+        public_config["allow_public_game_tag"] = config.get("app_config", {}).get("allow_public_game_tag", False)
+        public_config["allow_public_upload"] = config.get("app_config", {}).get("allow_public_upload", False)
+        return public_config
     else:
         return jsonify({})
+
+# Cache for local app version and release notes (persists until server restart)
+_local_version_cache = {'version': None}
+_release_cache = {'data': None}
+
+def _get_local_version():
+    """Get the locally installed app version from package.json. Cached until server restart."""
+    if _local_version_cache['version']:
+        return _local_version_cache['version']
+
+    try:
+        # Find package.json relative to this file: app/server/fireshare/api.py -> app/client/package.json
+        api_dir = Path(__file__).parent
+        package_json_path = api_dir.parent.parent / 'client' / 'package.json'
+
+        with open(package_json_path, 'r') as f:
+            package_data = json.load(f)
+            _local_version_cache['version'] = package_data.get('version', '')
+            return _local_version_cache['version']
+    except Exception as e:
+        logger.error(f"Failed to read local version from package.json: {e}")
+        return None
+
+def _fetch_release_notes():
+    """Fetch and cache release notes for the LOCAL version from GitHub. Cached until server restart."""
+    if _release_cache['data']:
+        return _release_cache['data']
+
+    local_version = _get_local_version()
+    if not local_version:
+        return None
+
+    try:
+        response = requests.get(
+            'https://api.github.com/repos/ShaneIsrael/fireshare/releases',
+            headers={'Accept': 'application/vnd.github.v3+json'},
+            timeout=10
+        )
+        response.raise_for_status()
+        releases = response.json()
+
+        if not releases:
+            return None
+
+        # Find the release matching the local version
+        target_release = None
+        for release in releases:
+            release_version = release.get('tag_name', '').lstrip('v')
+            if release_version == local_version:
+                target_release = release
+                break
+
+        # Fall back to latest if local version not found on GitHub
+        if not target_release:
+            logger.warning(f"Local version {local_version} not found on GitHub, using latest release")
+            target_release = releases[0]
+
+        _release_cache['data'] = {
+            'version': target_release.get('tag_name', '').lstrip('v'),
+            'name': target_release.get('name', ''),
+            'body': target_release.get('body', ''),
+            'published_at': target_release.get('published_at', ''),
+            'html_url': target_release.get('html_url', '')
+        }
+        return _release_cache['data']
+
+    except requests.RequestException as e:
+        logger.error(f"Failed to fetch GitHub releases: {e}")
+        return None
+
+@api.route('/api/release-notes')
+def get_release_notes():
+    """
+    Fetch latest release notes from GitHub, with 24-hour caching.
+    Also returns whether the current user should see the dialog.
+    """
+    release_data = _fetch_release_notes()
+
+    if not release_data:
+        return jsonify({'error': 'No releases found'}), 404
+
+    # Check if user should see the dialog (server-side decision)
+    show_dialog = False
+    if current_user.is_authenticated:
+        show_dialog = current_user.last_seen_version != release_data['version']
+
+    return jsonify({
+        **release_data,
+        'show_dialog': show_dialog
+    })
+
+@api.route('/api/user/last-seen-version', methods=["PUT"])
+@login_required
+def user_last_seen_version():
+    """
+    Update the last seen version for the current user.
+    Called when user dismisses the release notes dialog.
+    """
+    data = request.get_json()
+    version = data.get('version') if data else None
+    if not version:
+        return Response(status=400, response='Version is required.')
+
+    old_version = current_user.last_seen_version
+    current_user.last_seen_version = version
+    db.session.commit()
+    logger.info(f"User '{current_user.username}' last_seen_version updated: {old_version} -> {version}")
+    return jsonify({'last_seen_version': version})
 
 @api.route('/api/admin/config', methods=["GET", "PUT"])
 @login_required
@@ -141,6 +276,39 @@ def get_warnings():
             return jsonify({})
         else:
             return jsonify(warnings)
+
+def get_folder_size(folder_path):
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(folder_path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            if os.path.isfile(fp):  # Avoid broken symlinks
+                total_size += os.path.getsize(fp)
+    return total_size
+
+@api.route('/api/folder-size', methods=['GET'])
+@login_required
+def folder_size():
+    print("Folder size endpoint was hit!")  # Debugging line
+    path = request.args.get('path', default='.', type=str)
+    size_bytes = get_folder_size(path)
+    size_mb = size_bytes / (1024 * 1024)
+
+    if size_mb < 1024:
+        rounded_mb = round(size_mb / 100) * 100
+        size_pretty = f"{rounded_mb} MB"
+    elif size_mb < 1024 * 1024:
+        size_gb = size_mb / 1024
+        size_pretty = f"{round(size_gb, 1)} GB"
+    else:
+        size_tb = size_mb / (1024 * 1024)
+        size_pretty = f"{round(size_tb, 1)} TB"
+
+    return jsonify({
+        "folder": path,
+        "size_bytes": size_bytes,
+        "size_pretty": size_pretty
+    })
 
 @api.route('/api/admin/reset-database', methods=["POST"])
 @login_required
@@ -265,6 +433,36 @@ def manual_scan():
         Popen(["fireshare", "bulk-import"], shell=False)
     return Response(status=200)
 
+@api.route('/api/manual/scan-dates')
+@login_required
+def manual_scan_dates():
+    """Extract recording dates from filenames for videos missing recorded_at"""
+    from fireshare import util
+
+    try:
+        videos = Video.query.filter(Video.recorded_at.is_(None)).all()
+        dates_extracted = 0
+
+        for video in videos:
+            filename = Path(video.path).stem
+            recorded_at = util.extract_date_from_filename(filename)
+            if recorded_at:
+                video.recorded_at = recorded_at
+                dates_extracted += 1
+                logger.info(f"Extracted date {recorded_at.isoformat()} for video {video.video_id}")
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'videos_scanned': len(videos),
+            'dates_extracted': dates_extracted
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error scanning for dates: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @api.route('/api/scan-games/status')
 @login_required
 def get_game_scan_status():
@@ -367,7 +565,8 @@ def manual_scan_games():
                 # Group ALL unlinked videos by folder (not just those without suggestions)
                 folder_videos = {}
                 for video in unlinked_videos:
-                    parts = video.path.split('/')
+                    normalized_path = video.path.replace('\\', '/')
+                    parts = [part for part in normalized_path.split('/') if part]
                     folder = parts[0] if len(parts) > 1 else None
                     if folder:
                         if folder not in folder_videos:
@@ -549,6 +748,46 @@ def get_public_videos():
 
     return jsonify({"videos": videos_json})
 
+@api.route('/api/videos/dates')
+def get_video_dates():
+    """Get all unique dates that have videos recorded on them"""
+    from sqlalchemy import func
+    from flask_login import current_user
+
+    query = db.session.query(func.date(Video.recorded_at)).join(VideoInfo).filter(
+        Video.recorded_at.isnot(None),
+        Video.available.is_(True)
+    )
+
+    if not current_user.is_authenticated:
+        query = query.filter(VideoInfo.private.is_(False))
+
+    dates = query.distinct().order_by(func.date(Video.recorded_at).desc()).all()
+    return jsonify([str(d[0]) for d in dates if d[0]])
+
+@api.route('/api/videos/by-date/<date>')
+def get_videos_by_date(date):
+    """Get all videos recorded on a specific date (YYYY-MM-DD)"""
+    from sqlalchemy import func
+    from flask_login import current_user
+
+    try:
+        target_date = datetime.strptime(date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
+
+    query = Video.query.join(VideoInfo).filter(
+        func.date(Video.recorded_at) == target_date,
+        Video.available.is_(True)
+    )
+
+    if not current_user.is_authenticated:
+        query = query.filter(VideoInfo.private.is_(False))
+
+    videos = query.order_by(Video.recorded_at.desc()).all()
+    videos_json = [{"view_count": VideoView.count(v.video_id), **v.json()} for v in videos]
+    return jsonify({"videos": videos_json, "date": date})
+
 @api.route('/api/video/delete/<id>', methods=["DELETE"])
 @login_required
 def delete_video(id):
@@ -602,7 +841,26 @@ def handle_video_details(id):
             return Response(response='You do not have access to this resource.', status=401)
         video_info = VideoInfo.query.filter_by(video_id=id).first()
         if video_info:
-            db.session.query(VideoInfo).filter_by(video_id=id).update(request.json)
+            # Handle recorded_at separately since it's on Video model, not VideoInfo
+            data = request.json.copy()
+            recorded_at = data.pop('recorded_at', None)
+
+            # Update VideoInfo fields
+            if data:
+                db.session.query(VideoInfo).filter_by(video_id=id).update(data)
+
+            # Update Video.recorded_at if provided
+            if recorded_at is not None:
+                video = Video.query.filter_by(video_id=id).first()
+                if video:
+                    if recorded_at == '' or recorded_at is None:
+                        video.recorded_at = None
+                    else:
+                        try:
+                            video.recorded_at = datetime.fromisoformat(recorded_at.replace('Z', '+00:00'))
+                        except (ValueError, AttributeError):
+                            video.recorded_at = None
+
             db.session.commit()
             return Response(status=201)
         else:
@@ -891,38 +1149,6 @@ def get_video():
     rv = Response(chunk, 206, mimetype='video/mp4', content_type='video/mp4', direct_passthrough=True)
     rv.headers.add('Content-Range', 'bytes {0}-{1}/{2}'.format(start, start + length - 1, file_size))
     return rv
-    
-def get_folder_size(folder_path):
-    total_size = 0
-    for dirpath, dirnames, filenames in os.walk(folder_path):
-        for f in filenames:
-            fp = os.path.join(dirpath, f)
-            if os.path.isfile(fp):  # Avoid broken symlinks
-                total_size += os.path.getsize(fp)
-    return total_size
-
-@api.route('/api/folder-size', methods=['GET'])
-def folder_size():
-    print("Folder size endpoint was hit!")  # Debugging line
-    path = request.args.get('path', default='.', type=str)
-    size_bytes = get_folder_size(path)
-    size_mb = size_bytes / (1024 * 1024)
-
-    if size_mb < 1024:
-        rounded_mb = round(size_mb / 100) * 100
-        size_pretty = f"{rounded_mb} MB"
-    elif size_mb < 1024 * 1024:
-        size_gb = size_mb / 1024
-        size_pretty = f"{round(size_gb, 1)} GB"
-    else:
-        size_tb = size_mb / (1024 * 1024)
-        size_pretty = f"{round(size_tb, 1)} TB"
-
-    return jsonify({
-        "folder": path,
-        "size_bytes": size_bytes,
-        "size_pretty": size_pretty
-    })
 
 @api.route('/api/steamgrid/search', methods=["GET"])
 def search_steamgrid():
@@ -956,9 +1182,16 @@ def get_steamgrid_assets(game_id):
 def get_games():
     from flask_login import current_user
 
-    # If user is authenticated, show all games
+    # If user is authenticated, show games that have at least one linked video
     if current_user.is_authenticated:
-        games = GameMetadata.query.order_by(GameMetadata.name).all()
+        games = (
+            db.session.query(GameMetadata)
+            .join(VideoGameLink)
+            .join(Video)
+            .distinct()
+            .order_by(GameMetadata.name)
+            .all()
+        )
     else:
         # For public users, only show games that have at least one public (available) video
         games = (
@@ -978,7 +1211,7 @@ def get_games():
     return jsonify([game.json() for game in games])
 
 @api.route('/api/games', methods=["POST"])
-@login_required
+@login_required_unless_public_game_tag
 def create_game():
     data = request.json
 
@@ -1047,7 +1280,7 @@ def create_game():
     return jsonify(game.json()), 201
 
 @api.route('/api/videos/<video_id>/game', methods=["POST"])
-@login_required
+@login_required_unless_public_game_tag
 def link_video_to_game(video_id):
     data = request.json
 
@@ -1086,7 +1319,7 @@ def get_video_game(video_id):
     return jsonify(link.game.json())
 
 @api.route('/api/videos/<video_id>/game', methods=["DELETE"])
-@login_required
+@login_required_unless_public_game_tag
 def unlink_video_from_game(video_id):
     link = VideoGameLink.query.filter_by(video_id=video_id).first()
     if not link:
@@ -1097,6 +1330,14 @@ def unlink_video_from_game(video_id):
 
     return Response(status=204)
 
+def find_asset_with_extensions(asset_dir, base_name):
+    """Try to find an asset file with any supported extension."""
+    for ext in ['.png', '.jpg', '.jpeg', '.webp']:
+        path = asset_dir / f'{base_name}{ext}'
+        if path.exists():
+            return path
+    return None
+
 @api.route('/api/game/assets/<int:steamgriddb_id>/<filename>')
 def get_game_asset(steamgriddb_id, filename):
     # Validate filename to prevent path traversal
@@ -1104,19 +1345,31 @@ def get_game_asset(steamgriddb_id, filename):
         return Response(status=400, response='Invalid filename.')
 
     paths = current_app.config['PATHS']
+    asset_dir = paths['data'] / 'game_assets' / str(steamgriddb_id)
+    base_name = filename.rsplit('.', 1)[0]
+
+    # Optional fallback parameter (e.g., ?fallback=hero_1)
+    fallback = request.args.get('fallback')
+    if fallback and not re.match(r'^(hero_[12]|logo_1|icon_1)$', fallback):
+        fallback = None  # Invalid fallback, ignore it
+
     asset_path = paths['data'] / 'game_assets' / str(steamgriddb_id) / filename
 
+    # Try exact filename first
     if not asset_path.exists():
-        # Try other extensions if the requested one doesn't exist
-        base_name = filename.rsplit('.', 1)[0]
-        asset_dir = paths['data'] / 'game_assets' / str(steamgriddb_id)
-
+        # Try other extensions for the requested asset
         if asset_dir.exists():
-            for ext in ['.png', '.jpg', '.jpeg', '.webp']:
-                alternative_path = asset_dir / f'{base_name}{ext}'
-                if alternative_path.exists():
-                    asset_path = alternative_path
-                    break
+            found = find_asset_with_extensions(asset_dir, base_name)
+            if found:
+                asset_path = found
+
+    # If still not found and fallback is specified, try the fallback asset
+    if not asset_path.exists() and fallback:
+        logger.info(f"{base_name} not found for game {steamgriddb_id}, trying fallback: {fallback}")
+        if asset_dir.exists():
+            found = find_asset_with_extensions(asset_dir, fallback)
+            if found:
+                asset_path = found
 
     # If asset still doesn't exist, try to re-download from SteamGridDB
     if not asset_path.exists():
@@ -1132,15 +1385,17 @@ def get_game_asset(steamgriddb_id, filename):
 
             if result.get('success'):
                 logger.info(f"Assets downloaded for game {steamgriddb_id}: {result.get('assets')}")
-                # Try to find the file again after re-download
-                base_name = filename.rsplit('.', 1)[0]
-                asset_dir = paths['data'] / 'game_assets' / str(steamgriddb_id)
-                for ext in ['.png', '.jpg', '.jpeg', '.webp']:
-                    alternative_path = asset_dir / f'{base_name}{ext}'
-                    if alternative_path.exists():
-                        asset_path = alternative_path
-                        logger.info(f"Found {alternative_path.name}")
-                        break
+                # Try to find the requested file after re-download
+                found = find_asset_with_extensions(asset_dir, base_name)
+                if found:
+                    asset_path = found
+                    logger.info(f"Found {asset_path.name}")
+                # If still not found, try fallback after re-download
+                elif fallback:
+                    found = find_asset_with_extensions(asset_dir, fallback)
+                    if found:
+                        asset_path = found
+                        logger.info(f"Found fallback {asset_path.name}")
             else:
                 logger.error(f"Download failed for game {steamgriddb_id}: {result.get('error')}")
         else:
@@ -1286,7 +1541,7 @@ def get_video_game_suggestion(video_id):
     })
 
 @api.route('/api/videos/<video_id>/game/suggestion', methods=["DELETE"])
-@login_required
+@login_required_unless_public_game_tag
 def reject_game_suggestion(video_id):
     """User rejected the game suggestion - remove from storage"""
     from fireshare.cli import delete_game_suggestion
@@ -1348,6 +1603,70 @@ def clear_all_corrupt_status():
     
     count = clear_all_corrupt_videos()
     return jsonify({'cleared': count})
+
+@api.route('/api/feed/rss')
+def rss_feed():
+    # Base URL for API calls (backend)
+    backend_domain = f"https://{current_app.config['DOMAIN']}" if current_app.config['DOMAIN'] else request.host_url.rstrip('/')
+    
+    # URL for viewing (frontend)
+    # If we are on localhost:5000, the user wants both the link and video to point to the public dev port (3000)
+    frontend_domain = backend_domain
+    if "localhost:5000" in frontend_domain:
+        frontend_domain = frontend_domain.replace("localhost:5000", "localhost:3000")
+    elif "127.0.0.1:5000" in frontend_domain:
+        frontend_domain = frontend_domain.replace("127.0.0.1:5000", "localhost:3000")
+
+    # Load custom RSS config if it exists
+    paths = current_app.config['PATHS']
+    config_path = paths['data'] / 'config.json'
+    rss_title = "Fireshare Feed"
+    rss_description = "Latest videos from Fireshare"
+    if config_path.exists():
+        try:
+            with config_path.open() as f:
+                config = json.load(f)
+                rss_title = config.get("rss_config", {}).get("title", rss_title)
+                rss_description = config.get("rss_config", {}).get("description", rss_description)
+        except:
+            pass
+
+    # Only show public and available videos
+    videos = Video.query.join(VideoInfo).filter(
+        VideoInfo.private.is_(False),
+        Video.available.is_(True)
+    ).order_by(Video.created_at.desc()).limit(50).all()
+    
+    rss_items = []
+    for video in videos:
+        # Construct URLs
+        link = f"{frontend_domain}/#/w/{video.video_id}"
+        # Point both player link and video stream to the frontend port (3000) as requested
+        video_url = f"{frontend_domain}/api/video?id={video.video_id}"
+        poster_url = f"{frontend_domain}/api/video/poster?id={video.video_id}"
+        
+        # XML escaping for description and title is handled by Jinja2 by default, 
+        # but we should ensure dates are in RFC 822 format.
+        item = {
+            'title': video.info.title if video.info else video.video_id,
+            'link': link,
+            'description': video.info.description if video.info and video.info.description else f"Video: {video.info.title if video.info else video.video_id}",
+            'pubDate': video.created_at.strftime('%a, %d %b %Y %H:%M:%S +0000') if video.created_at else '',
+            'guid': video.video_id,
+            'enclosure': {
+                'url': video_url,
+                'type': 'video/mp4' # Or appropriate mimetype
+            },
+            'media_thumbnail': poster_url
+        }
+        rss_items.append(item)
+    
+    now_str = datetime.utcnow().strftime('%a, %d %b %Y %H:%M:%S +0000')
+    
+    return Response(
+        render_template('rss.xml', items=rss_items, domain=frontend_domain, now=now_str, feed_title=rss_title, feed_description=rss_description),
+        mimetype='application/rss+xml'
+    )
 
 @api.after_request
 def after_request(response):

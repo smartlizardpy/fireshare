@@ -12,7 +12,6 @@ import SnackbarAlert from '../components/alert/SnackbarAlert'
 
 import selectFolderTheme from '../common/reactSelectFolderTheme'
 import selectSortTheme from '../common/reactSelectSortTheme'
-
 import { SORT_OPTIONS } from '../common/constants'
 
 const createSelectFolders = (folders) => {
@@ -38,7 +37,7 @@ const Feed = ({ authenticated, searchText, cardSize, listStyle }) => {
       ? { value: category, label: category }
       : getSetting('folder') || { value: 'All Videos', label: 'All Videos' },
   )
-  const [selectedSort, setSelectedSort] = React.useState(getSetting('sortOption') || SORT_OPTIONS[0])
+  const [sortOrder, setSortOrder] = React.useState(SORT_OPTIONS?.[0] || { value: 'newest', label: 'Newest' })
 
   const [alert, setAlert] = React.useState({ open: false })
 
@@ -57,7 +56,7 @@ const Feed = ({ authenticated, searchText, cardSize, listStyle }) => {
   }
 
   function fetchVideos() {
-    VideoService.getPublicVideos(selectedSort.value)
+    VideoService.getPublicVideos()
       .then((res) => {
         setVideos(res.data.videos)
         setFilteredVideos(res.data.videos)
@@ -80,7 +79,7 @@ const Feed = ({ authenticated, searchText, cardSize, listStyle }) => {
         setAlert({
           open: true,
           type: 'error',
-          message: err.response?.data || 'Unknown Error',
+          message: typeof err.response?.data === 'string' ? err.response.data : 'Unknown Error',
         })
         console.log(err)
       })
@@ -89,7 +88,7 @@ const Feed = ({ authenticated, searchText, cardSize, listStyle }) => {
   React.useEffect(() => {
     fetchVideos()
     // eslint-disable-next-line
-  }, [selectedSort])
+  }, [])
 
   const handleFolderSelection = (folder) => {
     setSetting('folder', folder)
@@ -101,10 +100,41 @@ const Feed = ({ authenticated, searchText, cardSize, listStyle }) => {
     }
   }
 
-  const handleSortSelection = (sortOption) => {
-    setSetting('sortOption', sortOption)
-    setSelectedSort(sortOption)
-  }
+  // Get the filtered videos based on folder selection
+  const displayVideos = React.useMemo(() => {
+    if (selectedFolder.value === 'All Videos') {
+      return filteredVideos
+    }
+    return filteredVideos?.filter(
+      (v) =>
+        v.path
+          .split('/')
+          .slice(0, -1)
+          .filter((f) => f !== '')[0] === selectedFolder.value,
+    )
+  }, [filteredVideos, selectedFolder])
+
+  // Check if date grouping should be shown
+  const showDateGroups = getSetting('ui_config')?.show_date_groups !== false
+  const isSortingByViews = sortOrder.value === 'most_views' || sortOrder.value === 'least_views'
+  const skipDateGrouping = isSortingByViews || !showDateGroups
+
+  // Sort videos by recorded date or views
+  const sortedVideos = React.useMemo(() => {
+    if (!displayVideos) return []
+
+    return [...displayVideos].sort((a, b) => {
+      if (sortOrder.value === 'most_views') {
+        return (b.view_count || 0) - (a.view_count || 0)
+      } else if (sortOrder.value === 'least_views') {
+        return (a.view_count || 0) - (b.view_count || 0)
+      } else {
+        const dateA = a.recorded_at ? new Date(a.recorded_at) : new Date(0)
+        const dateB = b.recorded_at ? new Date(b.recorded_at) : new Date(0)
+        return sortOrder.value === 'newest' ? dateB - dateA : dateA - dateB
+      }
+    })
+  }, [displayVideos, sortOrder])
 
   return (
     <>
@@ -129,9 +159,9 @@ const Feed = ({ authenticated, searchText, cardSize, listStyle }) => {
                       />
                     </Box>
                     <Select
-                      value={selectedSort}
+                      value={sortOrder}
                       options={SORT_OPTIONS}
-                      onChange={handleSortSelection}
+                      onChange={setSortOrder}
                       styles={selectSortTheme}
                       blurInputOnSelect
                       isSearchable={false}
@@ -146,39 +176,24 @@ const Feed = ({ authenticated, searchText, cardSize, listStyle }) => {
                   authenticated={authenticated}
                   loadingIcon={loading ? <LoadingSpinner /> : null}
                   feedView
-                  videos={
-                    selectedFolder.value === 'All Videos'
-                      ? filteredVideos
-                      : filteredVideos?.filter(
-                          (v) =>
-                            v.path
-                              .split('/')
-                              .slice(0, -1)
-                              .filter((f) => f !== '')[0] === selectedFolder.value,
-                        )
-                  }
+                  videos={displayVideos}
                 />
               )}
               {listStyle === 'card' && (
-                <VideoCards
-                  authenticated={authenticated}
-                  loadingIcon={loading ? <LoadingSpinner /> : null}
-                  feedView={true}
-                  size={cardSize}
-                  fetchVideos={fetchVideos}
-                  showUploadCard={selectedFolder.value === 'All Videos'}
-                  videos={
-                    selectedFolder.value === 'All Videos'
-                      ? filteredVideos
-                      : filteredVideos?.filter(
-                          (v) =>
-                            v.path
-                              .split('/')
-                              .slice(0, -1)
-                              .filter((f) => f !== '')[0] === selectedFolder.value,
-                        )
-                  }
-                />
+                <Box sx={{ px: 1 }}>
+                  {loading && <LoadingSpinner />}
+                  {!loading && (
+                    <VideoCards
+                      videos={sortedVideos}
+                      authenticated={authenticated}
+                      feedView={true}
+                      size={cardSize}
+                      showUploadCard={selectedFolder.value === 'All Videos'}
+                      fetchVideos={fetchVideos}
+                      showDateHeaders={!skipDateGrouping}
+                    />
+                  )}
+                </Box>
               )}
             </Box>
           </Grid>

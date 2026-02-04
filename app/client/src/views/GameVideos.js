@@ -1,25 +1,30 @@
 import React from 'react'
-import { Box, Divider } from '@mui/material'
+import ReactDOM from 'react-dom'
+import { Box } from '@mui/material'
 import { useParams } from 'react-router-dom'
+import Select from 'react-select'
 import { GameService } from '../services'
 import VideoCards from '../components/admin/VideoCards'
-import VideoList from '../components/admin/VideoList'
+import GameVideosHeader from '../components/game/GameVideosHeader'
 import LoadingSpinner from '../components/misc/LoadingSpinner'
-import SnackbarAlert from '../components/alert/SnackbarAlert'
+import { SORT_OPTIONS } from '../common/constants'
+import { getSetting } from '../common/utils'
+import selectSortTheme from '../common/reactSelectSortTheme'
 
-const GameVideos = ({ cardSize, listStyle, authenticated, searchText }) => {
+const GameVideos = ({ cardSize, authenticated, searchText }) => {
   const { gameId } = useParams()
   const [videos, setVideos] = React.useState([])
   const [filteredVideos, setFilteredVideos] = React.useState([])
   const [search, setSearch] = React.useState(searchText)
   const [game, setGame] = React.useState(null)
   const [loading, setLoading] = React.useState(true)
-  const [alert, setAlert] = React.useState({ open: false })
+  const [sortOrder, setSortOrder] = React.useState(SORT_OPTIONS?.[0] || { value: 'newest', label: 'Newest' })
+  const [toolbarTarget, setToolbarTarget] = React.useState(null)
 
   // Filter videos when searchText changes
   if (searchText !== search) {
     setSearch(searchText)
-    setFilteredVideos(videos.filter((v) => v.info.title.search(new RegExp(searchText, 'i')) >= 0))
+    setFilteredVideos(videos.filter((v) => v.info?.title?.search(new RegExp(searchText, 'i')) >= 0))
   }
 
   React.useEffect(() => {
@@ -30,8 +35,9 @@ const GameVideos = ({ cardSize, listStyle, authenticated, searchText }) => {
       .then(([gamesRes, videosRes]) => {
         const foundGame = gamesRes.data.find(g => g.steamgriddb_id === parseInt(gameId))
         setGame(foundGame)
-        setVideos(videosRes.data)
-        setFilteredVideos(videosRes.data)
+        const fetchedVideos = videosRes.data || []
+        setVideos(fetchedVideos)
+        setFilteredVideos(fetchedVideos)
         setLoading(false)
       })
       .catch((err) => {
@@ -40,48 +46,69 @@ const GameVideos = ({ cardSize, listStyle, authenticated, searchText }) => {
       })
   }, [gameId])
 
+  React.useEffect(() => {
+    setToolbarTarget(document.getElementById('navbar-toolbar-extra'))
+  }, [])
+
   function fetchVideos() {
     GameService.getGameVideos(gameId)
-      .then((res) => setVideos(res.data))
+      .then((res) => setVideos(res.data || []))
       .catch((err) => console.error(err))
   }
+
+  // Check if date grouping should be shown
+  const showDateGroups = getSetting('ui_config')?.show_date_groups !== false
+  const isSortingByViews = sortOrder.value === 'most_views' || sortOrder.value === 'least_views'
+  const skipDateGrouping = isSortingByViews || !showDateGroups
+
+  const sortedVideos = React.useMemo(() => {
+    if (!filteredVideos || !Array.isArray(filteredVideos)) return []
+    return [...filteredVideos].sort((a, b) => {
+      if (sortOrder.value === 'most_views') {
+        return (b.view_count || 0) - (a.view_count || 0)
+      } else if (sortOrder.value === 'least_views') {
+        return (a.view_count || 0) - (b.view_count || 0)
+      } else {
+        const dateA = a.recorded_at ? new Date(a.recorded_at) : new Date(0)
+        const dateB = b.recorded_at ? new Date(b.recorded_at) : new Date(0)
+        return sortOrder.value === 'newest' ? dateB - dateA : dateA - dateB
+      }
+    })
+  }, [filteredVideos, sortOrder])
+
 
   if (loading) return <LoadingSpinner />
 
   return (
     <Box>
-      <SnackbarAlert alert={alert} setAlert={setAlert} />
+      {toolbarTarget && ReactDOM.createPortal(
+        <Box sx={{ minWidth: 200 }}>
+          <Select
+            value={sortOrder}
+            options={SORT_OPTIONS}
+            onChange={setSortOrder}
+            styles={selectSortTheme}
+            menuPortalTarget={document.body}
+            menuPosition="fixed"
+            blurInputOnSelect
+            isSearchable={false}
+          />
+        </Box>,
+        toolbarTarget,
+      )}
+      <GameVideosHeader
+        game={game}
+      />
       <Box sx={{ p: 3 }}>
-        {game?.logo_url && (
-          <Box sx={{ mb: 3 }}>
-            <Box
-              component="img"
-              src={game.logo_url}
-              sx={{
-                maxHeight: 80,
-                maxWidth: 300,
-                objectFit: 'contain',
-              }}
-            />
-            <Divider sx={{ mt: 2 }} />
-          </Box>
-        )}
-        {listStyle === 'list' ? (
-          <VideoList
-            videos={filteredVideos}
-            authenticated={authenticated}
-            feedView={false}
-          />
-        ) : (
-          <VideoCards
-            videos={filteredVideos}
-            authenticated={authenticated}
-            size={cardSize}
-            feedView={false}
-            fetchVideos={fetchVideos}
-            handleAlert={setAlert}
-          />
-        )}
+
+        <VideoCards
+          videos={sortedVideos}
+          authenticated={authenticated}
+          size={cardSize}
+          feedView={false}
+          fetchVideos={fetchVideos}
+          showDateHeaders={!skipDateGrouping}
+        />
       </Box>
     </Box>
   )
