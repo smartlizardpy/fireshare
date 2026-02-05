@@ -533,14 +533,21 @@ const Settings = ({ authenticated }) => {
                   </Typography>
                 </Box>
                 {!transcodingStatus.enabled ? (
-                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
-                    Transcoding is disabled. Set ENABLE_TRANSCODING=true in your container to enable.
-                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                    <Chip
+                      label="Disabled"
+                      color="error"
+                      size="small"
+                    />
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+                      Transcoding is disabled. Set ENABLE_TRANSCODING=true in your docker container to enable.
+                    </Typography>
+                  </Box>
                 ) : (
                   <>
                     <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', mb: 1 }}>
                       <Chip
-                        label="Transcoding Enabled"
+                        label="Enabled"
                         color="success"
                         size="small"
                       />
@@ -631,7 +638,7 @@ const Settings = ({ authenticated }) => {
                           }
                         />
                       }
-                      label="Automatically transcode new uploads"
+                      label="Automatically transcode new videos"
                     />
                     <Box sx={{ display: 'flex', gap: 1 }}>
                       {!transcodingStatus.is_running ? (
