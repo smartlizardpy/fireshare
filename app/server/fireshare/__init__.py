@@ -12,7 +12,7 @@ import json
 import secrets
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import StaticPool
 from sqlite3 import Connection as SQLite3Connection
 
 logger = logging.getLogger('fireshare')
@@ -32,8 +32,8 @@ def set_sqlite_pragma(dbapi_conn, connection_record):
         # Enable WAL mode for better concurrency
         cursor.execute("PRAGMA journal_mode=WAL")
         
-        # Set busy timeout to 30 seconds (instead of failing immediately)
-        cursor.execute("PRAGMA busy_timeout = 30000")
+        # Set busy timeout to 5 seconds (instead of failing immediately)
+        cursor.execute("PRAGMA busy_timeout = 5000")
         
         # Increase cache size (default is 2MB, increase to 64MB)
         cursor.execute("PRAGMA cache_size = -64000")
@@ -46,9 +46,6 @@ def set_sqlite_pragma(dbapi_conn, connection_record):
         
         # Increase mmap size for better read performance
         cursor.execute("PRAGMA mmap_size = 268435456")  # 256MB
-        
-        # Set page size (must be done before first write)
-        cursor.execute("PRAGMA page_size = 4096")
         
         cursor.close()
         
@@ -119,13 +116,12 @@ def create_app(init_schedule=False):
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{app.config["DATA_DIRECTORY"]}/db.sqlite'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     # Configure SQLite connection for better concurrency handling
-    # NullPool disables connection pooling - each request gets a fresh connection
-    # This prevents stale connection issues and lock contention with SQLite
+    # StaticPool maintains a single persistent connection shared across threads in the process
+    # This works optimally with WAL mode which is designed for persistent connections
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-        'poolclass': NullPool,  # Disable connection pooling for SQLite
+        'poolclass': StaticPool,
         'connect_args': {
-            'timeout': 30,  # Connection timeout in seconds (wait for locks)
-            'check_same_thread': False,  # Allow multi-threaded access (safe with WAL mode)
+            'check_same_thread': False,  # Required for StaticPool with SQLite
         },
     }
     app.config['SCHEDULED_JOBS_DATABASE_URI'] = f'sqlite:///{app.config["DATA_DIRECTORY"]}/jobs.sqlite'

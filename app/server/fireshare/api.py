@@ -283,7 +283,6 @@ def get_warnings():
         else:
             return jsonify(warnings)
 
-
 # Global variable to track transcoding process
 _transcoding_process = None
 
@@ -376,6 +375,38 @@ def cancel_transcoding():
     return jsonify({"status": "cancelled"})
 
 
+def get_folder_size(folder_path):
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(folder_path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            if os.path.isfile(fp):  # Avoid broken symlinks
+                total_size += os.path.getsize(fp)
+    return total_size
+
+@api.route('/api/folder-size', methods=['GET'])
+@login_required
+def folder_size():
+    print("Folder size endpoint was hit!")  # Debugging line
+    path = request.args.get('path', default='.', type=str)
+    size_bytes = get_folder_size(path)
+    size_mb = size_bytes / (1024 * 1024)
+
+    if size_mb < 1024:
+        rounded_mb = round(size_mb / 100) * 100
+        size_pretty = f"{rounded_mb} MB"
+    elif size_mb < 1024 * 1024:
+        size_gb = size_mb / 1024
+        size_pretty = f"{round(size_gb, 1)} GB"
+    else:
+        size_tb = size_mb / (1024 * 1024)
+        size_pretty = f"{round(size_tb, 1)} TB"
+
+    return jsonify({
+        "folder": path,
+        "size_bytes": size_bytes,
+        "size_pretty": size_pretty
+    })
 @api.route('/api/admin/reset-database', methods=["POST"])
 @login_required
 def reset_database():
@@ -1215,38 +1246,6 @@ def get_video():
     rv = Response(chunk, 206, mimetype='video/mp4', content_type='video/mp4', direct_passthrough=True)
     rv.headers.add('Content-Range', 'bytes {0}-{1}/{2}'.format(start, start + length - 1, file_size))
     return rv
-    
-def get_folder_size(folder_path):
-    total_size = 0
-    for dirpath, dirnames, filenames in os.walk(folder_path):
-        for f in filenames:
-            fp = os.path.join(dirpath, f)
-            if os.path.isfile(fp):  # Avoid broken symlinks
-                total_size += os.path.getsize(fp)
-    return total_size
-
-@api.route('/api/folder-size', methods=['GET'])
-def folder_size():
-    print("Folder size endpoint was hit!")  # Debugging line
-    path = request.args.get('path', default='.', type=str)
-    size_bytes = get_folder_size(path)
-    size_mb = size_bytes / (1024 * 1024)
-
-    if size_mb < 1024:
-        rounded_mb = round(size_mb / 100) * 100
-        size_pretty = f"{rounded_mb} MB"
-    elif size_mb < 1024 * 1024:
-        size_gb = size_mb / 1024
-        size_pretty = f"{round(size_gb, 1)} GB"
-    else:
-        size_tb = size_mb / (1024 * 1024)
-        size_pretty = f"{round(size_tb, 1)} TB"
-
-    return jsonify({
-        "folder": path,
-        "size_bytes": size_bytes,
-        "size_pretty": size_pretty
-    })
 
 @api.route('/api/steamgrid/search', methods=["GET"])
 def search_steamgrid():

@@ -19,7 +19,7 @@ import { useNavigate } from 'react-router-dom'
 import { GameService } from '../services'
 import LoadingSpinner from '../components/misc/LoadingSpinner'
 
-const Games = ({ authenticated }) => {
+const Games = ({ authenticated, searchText }) => {
   const [games, setGames] = React.useState([])
   const [loading, setLoading] = React.useState(true)
   const [hoveredGame, setHoveredGame] = React.useState(null)
@@ -29,6 +29,14 @@ const Games = ({ authenticated }) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
   const [deleteAssociatedVideos, setDeleteAssociatedVideos] = React.useState(false)
   const navigate = useNavigate()
+
+  // Filter games based on search text
+  const filteredGames = React.useMemo(() => {
+    if (!searchText) return games
+    return games.filter((game) =>
+      (game.name || '').toLowerCase().includes(searchText.toLowerCase())
+    )
+  }, [games, searchText])
 
   React.useEffect(() => {
     GameService.getGames()
@@ -149,7 +157,7 @@ const Games = ({ authenticated }) => {
       </Box>
 
       <Grid container spacing={2}>
-        {[...games]
+        {[...filteredGames]
           .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }))
           .map((game) => {
           const isHovered = hoveredGame === game.steamgriddb_id
