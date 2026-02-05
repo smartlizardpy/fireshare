@@ -3,6 +3,7 @@ import { Grid, Box } from '@mui/material'
 import Typography from '@mui/material/Typography'
 import Tooltip from '@mui/material/Tooltip'
 import { ConfigService } from '../../services'
+import MovieFilterIcon from '@mui/icons-material/MovieFilter';
 
 const TranscodingStatus = ({ open }) => {
   const [status, setStatus] = React.useState(null)
@@ -63,7 +64,7 @@ const TranscodingStatus = ({ open }) => {
 
   if (!status && !stoppedMessage) return null
 
-  if (stoppedMessage) {
+  if (stoppedMessage && open) {
     return (
       <>
         <Box
@@ -182,20 +183,30 @@ const TranscodingStatus = ({ open }) => {
       <Tooltip title={tooltipText} arrow placement="right">
         <Box
           sx={{
-            pl: 2,
-            pr: 2,
-            pb: 1,
+            width: 42,
+            mx: 1,
+            height: 40,
+            border: '1px solid rgba(194, 224, 255, 0.18)',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            ':hover': {
+              backgroundColor: 'rgba(194, 224, 255, 0.08)',
+            },
           }}
         >
           <Typography
             sx={{
               fontFamily: 'monospace',
               fontWeight: 600,
-              fontSize: 12,
-              color: '#FF9800',
+              fontSize: 15,
+              color: '#EBEBEB',
             }}
           >
-            {status.total === 0 ? '...' : `${status.current}/${status.total}`}
+            <IconButton sx={{ p: 0.5, pointerEvents: 'all' }}>
+              <MovieFilterIcon sx={{ color: '#EBEBEB' }} />
+            </IconButton>
           </Typography>
         </Box>
       </Tooltip>
