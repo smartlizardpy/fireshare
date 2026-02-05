@@ -107,48 +107,49 @@ const TranscodingStatus = ({ open }) => {
   if (open) {
     return (
       <>
-        <Box
-          sx={{
-            width: 222,
-            m: 1,
-            px: 2,
-            py: 1.5,
-            border: '1px solid rgba(194, 224, 255, 0.18)',
-            borderRadius: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            color: '#EBEBEB',
-            fontWeight: 600,
-            fontSize: 13,
-            backgroundColor: 'transparent',
-            ':hover': {
-              backgroundColor: 'rgba(194, 224, 255, 0.08)',
-            },
-          }}
-        >
-          <Grid container alignItems="center">
-            <Grid item>
-              <Typography
-                sx={{
-                  fontFamily: 'monospace',
-                  fontWeight: 600,
-                  fontSize: 12,
-                  color: '#EBEBEB',
-                }}
-              >
-                {status.total === 0 ? (
-                  'Preparing transcode...'
-                ) : (
-                  <>
-                    Transcoding...{' '}
-                    <Box component="span" sx={{ color: '#2684FF' }}>
-                      {status.current}/{status.total}
-                    </Box>
-                  </>
-                )}
-              </Typography>
-              {status.current_video && (
-                <Tooltip title={status.current_video} arrow placement="right">
+        <Tooltip title={status.current_video || 'Not transcoding'} arrow placement="right">
+          <Box
+            sx={{
+              width: 222,
+              m: 1,
+              px: 2,
+              py: 1.5,
+              border: '1px solid rgba(194, 224, 255, 0.18)',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              color: '#EBEBEB',
+              fontWeight: 600,
+              fontSize: 13,
+              backgroundColor: 'transparent',
+              ':hover': {
+                backgroundColor: 'rgba(194, 224, 255, 0.08)',
+              },
+            }}
+          >
+            <Grid container alignItems="center">
+              <Grid item>
+                <Typography
+                  sx={{
+                    fontFamily: 'monospace',
+                    fontWeight: 600,
+                    fontSize: 12,
+                    color: '#EBEBEB',
+                  }}
+                >
+                  {status.total === 0 ? (
+                    'Preparing transcode...'
+                  ) : (
+                    <>
+                      Transcoding:{' '}
+                      <Box component="span" sx={{ color: '#2684FF' }}>
+                        {status.current}/{status.total}
+                      </Box>
+                    </>
+                  )}
+                </Typography>
+                {status.current_video && (
+
                   <Typography
                     sx={{
                       fontFamily: 'monospace',
@@ -161,11 +162,11 @@ const TranscodingStatus = ({ open }) => {
                   >
                     {status.current_video}
                   </Typography>
-                </Tooltip>
-              )}
+                )}
+              </Grid>
             </Grid>
-          </Grid>
-        </Box>
+          </Box>
+        </Tooltip >
       </>
     )
   }
