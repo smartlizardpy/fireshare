@@ -1,5 +1,6 @@
 import * as React from 'react'
 import Box from '@mui/material/Box'
+import Divider from '@mui/material/Divider'
 import Typography from '@mui/material/Typography'
 import Tooltip from '@mui/material/Tooltip'
 import { ConfigService } from '../../services'
@@ -65,65 +66,71 @@ const TranscodingStatus = ({ open }) => {
 
   if (stoppedMessage) {
     return (
-      <Box sx={{ pl: 2, pr: 2, pb: 1 }}>
-        <Typography
-          sx={{
-            fontFamily: 'monospace',
-            fontWeight: 600,
-            fontSize: open ? 15 : 12,
-            color: '#999',
-          }}
-        >
-          {stoppedMessage}
-        </Typography>
-      </Box>
+      <>
+        <Box sx={{ pl: 2, pr: 2, pb: 1 }}>
+          <Typography
+            sx={{
+              fontFamily: 'monospace',
+              fontWeight: 600,
+              fontSize: open ? 15 : 12,
+              color: '#999',
+            }}
+          >
+            {stoppedMessage}
+          </Typography>
+        </Box>
+        <Divider />
+      </>
     )
   }
 
   if (open) {
     return (
-      <Box
-        sx={{
-          pl: 2,
-          pr: 2,
-          pb: 1,
-        }}
-      >
-        <Typography
+      <>
+        <Box
           sx={{
-            fontFamily: 'monospace',
-            fontWeight: 600,
-            fontSize: 15,
-            color: '#EBEBEB',
+            pl: 2,
+            pr: 2,
+            pb: 1,
           }}
         >
-          {status.total === 0 ? (
-            'Preparing transcode...'
-          ) : (
-            <>
-              Transcoding{' '}
-              <Box component="span" sx={{ color: '#FF9800' }}>
-                {status.current}/{status.total}
-              </Box>
-            </>
+          <Typography
+            sx={{
+              fontFamily: 'monospace',
+              fontWeight: 600,
+              fontSize: 15,
+              color: '#EBEBEB',
+            }}
+          >
+            {status.total === 0 ? (
+              'Preparing transcode...'
+            ) : (
+              <>
+                Transcoding{' '}
+                <Box component="span" sx={{ color: '#FF9800' }}>
+                  {status.current}/{status.total}
+                </Box>
+              </>
+            )}
+          </Typography>
+          {status.current_video && (
+            <Tooltip title={status.current_video} arrow placement="right">
+              <Typography
+                sx={{
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  color: '#999',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                }}
+              >
+                {status.current_video}
+              </Typography>
+            </Tooltip>
           )}
-        </Typography>
-        {status.current_video && (
-          <Tooltip title={status.current_video} arrow placement="right">
-            <Typography
-              sx={{
-                fontFamily: 'monospace',
-                fontSize: 12,
-                color: '#999',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-              }}
-            >
-              {status.current_video}
-            </Typography>
-          </Tooltip>
-        )}
-      </Box>
+        </Box>
+        <Divider />
+      </>
     )
   }
 
@@ -132,26 +139,29 @@ const TranscodingStatus = ({ open }) => {
     : `Transcoding: ${status.current}/${status.total}${status.current_video ? `\n${status.current_video}` : ''}`
 
   return (
-    <Tooltip title={tooltipText} arrow placement="right">
-      <Box
-        sx={{
-          pl: 2,
-          pr: 2,
-          pb: 1,
-        }}
-      >
-        <Typography
+    <>
+      <Tooltip title={tooltipText} arrow placement="right">
+        <Box
           sx={{
-            fontFamily: 'monospace',
-            fontWeight: 600,
-            fontSize: 12,
-            color: '#FF9800',
+            pl: 2,
+            pr: 2,
+            pb: 1,
           }}
         >
-          {status.total === 0 ? '...' : `${status.current}/${status.total}`}
-        </Typography>
-      </Box>
-    </Tooltip>
+          <Typography
+            sx={{
+              fontFamily: 'monospace',
+              fontWeight: 600,
+              fontSize: 12,
+              color: '#FF9800',
+            }}
+          >
+            {status.total === 0 ? '...' : `${status.current}/${status.total}`}
+          </Typography>
+        </Box>
+      </Tooltip>
+      <Divider />
+    </>
   )
 }
 
