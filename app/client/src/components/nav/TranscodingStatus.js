@@ -7,44 +7,21 @@ import SyncIcon from '@mui/icons-material/Sync'
 
 const TranscodingStatus = ({ open }) => {
   const [status, setStatus] = React.useState(null)
-  const [isPolling, setIsPolling] = React.useState(false)
   const [stoppedMessage, setStoppedMessage] = React.useState(null)
 
   React.useEffect(() => {
-    const checkInitial = async () => {
-      try {
-        const res = await ConfigService.getTranscodingStatus()
-        if (res.data.is_running) {
-          setStatus(res.data)
-          setIsPolling(true)
-        }
-      } catch (e) { }
-    }
-    checkInitial()
-  }, [])
-
-  React.useEffect(() => {
-    const handleStart = () => {
-      setStoppedMessage(null)
-      setIsPolling(true)
-    }
     const handleCancel = () => {
-      setIsPolling(false)
       setStatus(null)
       setStoppedMessage('Transcoding stopped')
       setTimeout(() => setStoppedMessage(null), 3000)
     }
-    window.addEventListener('transcodingStarted', handleStart)
     window.addEventListener('transcodingCancelled', handleCancel)
     return () => {
-      window.removeEventListener('transcodingStarted', handleStart)
       window.removeEventListener('transcodingCancelled', handleCancel)
     }
   }, [])
 
   React.useEffect(() => {
-    if (!isPolling) return
-
     const checkStatus = async () => {
       try {
         const res = await ConfigService.getTranscodingStatus()
@@ -52,15 +29,14 @@ const TranscodingStatus = ({ open }) => {
           setStatus(res.data)
         } else {
           setStatus(null)
-          setIsPolling(false)
         }
       } catch (e) { }
     }
 
     checkStatus()
-    const interval = setInterval(checkStatus, 3000)
+    const interval = setInterval(checkStatus, status?.is_running ? 3000 : 15000)
     return () => clearInterval(interval)
-  }, [isPolling])
+  }, [status?.is_running])
 
   if (!status && !stoppedMessage) return null
 
@@ -209,8 +185,8 @@ const TranscodingStatus = ({ open }) => {
                 color: '#EBEBEB',
                 animation: 'spin 1.5s linear infinite',
                 '@keyframes spin': {
-                  '0%': { transform: 'rotate(0deg)' },
-                  '100%': { transform: 'rotate(360deg)' },
+                  '0%': { transform: 'rotate(360deg)' },
+                  '100%': { transform: 'rotate(0deg)' },
                 },
               }} />
             </IconButton>
