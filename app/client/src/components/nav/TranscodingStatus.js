@@ -3,7 +3,7 @@ import { Grid, Box, IconButton } from '@mui/material'
 import Typography from '@mui/material/Typography'
 import Tooltip from '@mui/material/Tooltip'
 import { ConfigService } from '../../services'
-import MovieFilterIcon from '@mui/icons-material/MovieFilter';
+import SyncIcon from '@mui/icons-material/Sync'
 
 const TranscodingStatus = ({ open }) => {
   const [status, setStatus] = React.useState(null)
@@ -205,7 +205,14 @@ const TranscodingStatus = ({ open }) => {
             }}
           >
             <IconButton sx={{ p: 0.5, pointerEvents: 'all' }}>
-              <MovieFilterIcon sx={{ color: '#EBEBEB' }} />
+              <SyncIcon sx={{
+                color: '#EBEBEB',
+                animation: 'spin 1.5s linear infinite',
+                '@keyframes spin': {
+                  '0%': { transform: 'rotate(0deg)' },
+                  '100%': { transform: 'rotate(360deg)' },
+                },
+              }} />
             </IconButton>
           </Typography>
         </Box>
