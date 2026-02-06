@@ -184,7 +184,7 @@ const TranscodingStatus = ({ open }) => {
         <Box
           sx={{
             width: 42,
-            mx: 1,
+            m: 1,
             height: 40,
             border: '1px solid rgba(194, 224, 255, 0.18)',
             borderRadius: '8px',
