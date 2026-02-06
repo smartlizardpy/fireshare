@@ -8,6 +8,8 @@ import SyncIcon from '@mui/icons-material/Sync'
 const TranscodingStatus = ({ open }) => {
   const [status, setStatus] = React.useState(null)
   const [stoppedMessage, setStoppedMessage] = React.useState(null)
+  const intervalRef = React.useRef(null)
+  const isRunningRef = React.useRef(false)
 
   React.useEffect(() => {
     const handleCancel = () => {
@@ -22,25 +24,22 @@ const TranscodingStatus = ({ open }) => {
   }, [])
 
   React.useEffect(() => {
-    let interval = null
-    let isRunning = false
-
     const checkStatus = async () => {
       try {
         const res = await ConfigService.getTranscodingStatus()
         if (res.data.is_running) {
           setStatus(res.data)
-          if (!isRunning) {
-            isRunning = true
-            clearInterval(interval)
-            interval = setInterval(checkStatus, 3000)
+          if (!isRunningRef.current) {
+            isRunningRef.current = true
+            clearInterval(intervalRef.current)
+            intervalRef.current = setInterval(checkStatus, 3000)
           }
         } else {
           setStatus(null)
-          if (isRunning) {
-            isRunning = false
-            clearInterval(interval)
-            interval = setInterval(checkStatus, 15000)
+          if (isRunningRef.current) {
+            isRunningRef.current = false
+            clearInterval(intervalRef.current)
+            intervalRef.current = setInterval(checkStatus, 15000)
           }
         }
       } catch (e) { }
@@ -48,13 +47,16 @@ const TranscodingStatus = ({ open }) => {
 
     const init = async () => {
       await checkStatus()
-      if (!interval) {
-        interval = setInterval(checkStatus, 15000)
+      if (!intervalRef.current) {
+        intervalRef.current = setInterval(checkStatus, 15000)
       }
     }
     init()
 
-    return () => clearInterval(interval)
+    return () => {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
   }, [])
 
   if (!status && !stoppedMessage) return null
