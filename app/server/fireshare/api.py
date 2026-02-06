@@ -571,10 +571,12 @@ def manual_scan_dates():
     try:
         videos = Video.query.filter(Video.recorded_at.is_(None)).all()
         dates_extracted = 0
+        paths = current_app.config['PATHS']
+        videos_path = paths["video"]
 
         for video in videos:
-            filename = Path(video.path).stem
-            recorded_at = util.extract_date_from_filename(filename)
+            video_file_path = videos_path / video.path
+            recorded_at = util.extract_date_from_file(video_file_path)
             if recorded_at:
                 video.recorded_at = recorded_at
                 dates_extracted += 1
