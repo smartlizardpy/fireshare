@@ -70,6 +70,16 @@ const Games = ({ authenticated, searchText }) => {
     }
   }
 
+  const allSelected = filteredGames.length > 0 && selectedGames.size === filteredGames.length
+
+  const handleSelectAllToggle = () => {
+    if (allSelected) {
+      setSelectedGames(new Set())
+    } else {
+      setSelectedGames(new Set(filteredGames.map((g) => g.steamgriddb_id)))
+    }
+  }
+
   const handleGameSelect = (gameId) => {
     const newSelected = new Set(selectedGames)
     if (newSelected.has(gameId)) {
@@ -125,18 +135,30 @@ const Games = ({ authenticated, searchText }) => {
       {/* Edit button and Delete button */}
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2, gap: 2, alignItems: 'flex-start' }}>
         {editMode && (
-          <Button
-            variant="contained"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={handleDeleteClick}
-            disabled={selectedGames.size === 0}
-            sx={{
-              borderRadius: '8px',
-            }}
-          >
-            Delete {selectedGames.size > 0 && `(${selectedGames.size})`}
-          </Button>
+          <Box sx={{ display: 'flex' }}>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={handleSelectAllToggle}
+              sx={{
+                borderRadius: '8px 0 0 8px',
+              }}
+            >
+              {allSelected ? 'Select None' : 'Select All'}
+            </Button>
+            <Button
+              variant="contained"
+              color="error"
+              startIcon={<DeleteIcon />}
+              onClick={handleDeleteClick}
+              disabled={selectedGames.size === 0}
+              sx={{
+                borderRadius: '0 8px 8px 0',
+              }}
+            >
+              Delete {selectedGames.size > 0 && `(${selectedGames.size})`}
+            </Button>
+          </Box>
         )}
         {authenticated && (
           <IconButton

@@ -167,6 +167,16 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle, showRelease
     }
   }
 
+  const allSelected = sortedVideos.length > 0 && selectedVideos.size === sortedVideos.length
+
+  const handleSelectAllToggle = () => {
+    if (allSelected) {
+      setSelectedVideos(new Set())
+    } else {
+      setSelectedVideos(new Set(sortedVideos.map((v) => v.video_id)))
+    }
+  }
+
   const handleVideoSelect = (videoId) => {
     const newSelected = new Set(selectedVideos)
     if (newSelected.has(videoId)) {
@@ -334,7 +344,17 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle, showRelease
             {authenticated && (
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2, gap: 2, px: 3 }}>
                 {editMode && (
-                  <>
+                  <Box sx={{ display: 'flex' }}>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      onClick={handleSelectAllToggle}
+                      sx={{
+                        borderRadius: '8px 0 0 8px',
+                      }}
+                    >
+                      {allSelected ? 'Select None' : 'Select All'}
+                    </Button>
                     <Button
                       variant="contained"
                       color="primary"
@@ -342,7 +362,7 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle, showRelease
                       onClick={handleLinkGameClick}
                       disabled={selectedVideos.size === 0}
                       sx={{
-                        borderRadius: '8px',
+                        borderRadius: 0,
                       }}
                     >
                       Link to Game {selectedVideos.size > 0 && `(${selectedVideos.size})`}
@@ -354,12 +374,12 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle, showRelease
                       onClick={handleDeleteClick}
                       disabled={selectedVideos.size === 0}
                       sx={{
-                        borderRadius: '8px',
+                        borderRadius: '0 8px 8px 0',
                       }}
                     >
                       Delete {selectedVideos.size > 0 && `(${selectedVideos.size})`}
                     </Button>
-                  </>
+                  </Box>
                 )}
                 <IconButton
                   onClick={handleEditModeToggle}
