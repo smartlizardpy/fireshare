@@ -977,7 +977,7 @@ def detect_game_from_filename(filename: str, steamgriddb_api_key: str = None, pa
     logger.debug(f"No game match found for filename: '{clean_name}'")
     return None
 
-def extract_date_from_filename(filename: str):
+def _extract_date_from_filename(filename: str):
     """
     Extract a recording date from a video filename using regex patterns.
 
@@ -1031,3 +1031,105 @@ def extract_date_from_filename(filename: str):
             pass
 
     return None
+
+
+def _extract_date_from_metadata(file_path: Path):
+    """
+    Extract creation date from video file metadata using ffprobe.
+
+    Looks for common metadata tags like creation_time, date, etc.
+
+    Args:
+        file_path: Path to the video file
+
+    Returns:
+        datetime object if a valid date was found in metadata, None otherwise
+    """
+    try:
+        cmd = f'ffprobe -v quiet -print_format json -show_entries format_tags {file_path}'
+        logger.debug(f"$ {cmd}")
+        data = json.loads(sp.check_output(cmd.split()).decode('utf-8'))
+        
+        tags = data.get('format', {}).get('tags', {})
+        if not tags:
+            return None
+        
+        # Common metadata date tags (case-insensitive check)
+        date_tags = ['creation_time', 'date', 'date_recorded', 'recorded_date', 
+                     'com.apple.quicktime.creationdate', 'creation_date']
+        
+        for tag in date_tags:
+            # Try both original case and lowercase
+            value = tags.get(tag) or tags.get(tag.upper()) or tags.get(tag.lower())
+            if value:
+                # Try parsing various date formats
+                date_formats = [
+                    '%Y-%m-%dT%H:%M:%S.%fZ',  # ISO format with microseconds
+                    '%Y-%m-%dT%H:%M:%SZ',      # ISO format
+                    '%Y-%m-%dT%H:%M:%S.%f',    # ISO without Z
+                    '%Y-%m-%dT%H:%M:%S',       # ISO without Z or microseconds
+                    '%Y-%m-%d %H:%M:%S',       # Standard datetime
+                    '%Y-%m-%d',                # Date only
+                    '%Y:%m:%d %H:%M:%S',       # EXIF style
+                ]
+                
+                for fmt in date_formats:
+                    try:
+                        # Handle timezone offset (e.g., +00:00)
+                        clean_value = re.sub(r'[+-]\d{2}:\d{2}$', '', value)
+                        parsed = datetime.strptime(clean_value, fmt)
+                        if 2000 <= parsed.year <= datetime.now().year + 1:
+                            logger.debug(f"Extracted date {parsed} from metadata tag '{tag}'")
+                            return parsed
+                    except ValueError:
+                        continue
+        
+        return None
+    except Exception as ex:
+        logger.debug(f"Failed to extract date from metadata: {ex}")
+        return None
+
+
+def extract_date_from_file(file_path: Path):
+    """
+    Extract a recording date from a video file.
+
+    Tries the following sources in order:
+    1. Video metadata (creation_time, date tags via ffprobe)
+    2. Filename patterns (common screen recording software formats)
+    3. File creation timestamp
+
+    Args:
+        file_path: Path to the video file
+
+    Returns:
+        datetime object with the best available date, or None if file doesn't exist
+    """
+    file_path = Path(file_path)
+    
+    if not file_path.exists():
+        logger.warning(f"Cannot extract date from non-existent file: {file_path}")
+        return None
+    
+    # 1. Try metadata first (most accurate)
+    metadata_date = _extract_date_from_metadata(file_path)
+    if metadata_date:
+        logger.debug(f"Using metadata date for {file_path.name}: {metadata_date}")
+        return metadata_date
+    
+    # 2. Try filename patterns
+    filename_date = _extract_date_from_filename(file_path.name)
+    if filename_date:
+        logger.debug(f"Using filename date for {file_path.name}: {filename_date}")
+        return filename_date
+    
+    # 3. Fall back to file creation time
+    try:
+        # Use ctime on Unix (inode change time, often creation) or creation time on Windows
+        created_timestamp = os.path.getctime(file_path)
+        created_date = datetime.fromtimestamp(created_timestamp)
+        logger.debug(f"Using file creation date for {file_path.name}: {created_date}")
+        return created_date
+    except Exception as ex:
+        logger.warning(f"Failed to get file creation time for {file_path}: {ex}")
+        return None

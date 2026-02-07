@@ -1,85 +1,103 @@
 import * as React from 'react'
-import Box from '@mui/material/Box'
-import Divider from '@mui/material/Divider'
+import { Grid, Box, IconButton } from '@mui/material'
 import Typography from '@mui/material/Typography'
 import Tooltip from '@mui/material/Tooltip'
 import { ConfigService } from '../../services'
+import SyncIcon from '@mui/icons-material/Sync'
 
 const TranscodingStatus = ({ open }) => {
   const [status, setStatus] = React.useState(null)
-  const [isPolling, setIsPolling] = React.useState(false)
   const [stoppedMessage, setStoppedMessage] = React.useState(null)
+  const intervalRef = React.useRef(null)
+  const isRunningRef = React.useRef(false)
 
   React.useEffect(() => {
-    const checkInitial = async () => {
-      try {
-        const res = await ConfigService.getTranscodingStatus()
-        if (res.data.is_running) {
-          setStatus(res.data)
-          setIsPolling(true)
-        }
-      } catch (e) {}
-    }
-    checkInitial()
-  }, [])
-
-  React.useEffect(() => {
-    const handleStart = () => {
-      setStoppedMessage(null)
-      setIsPolling(true)
-    }
     const handleCancel = () => {
-      setIsPolling(false)
       setStatus(null)
       setStoppedMessage('Transcoding stopped')
       setTimeout(() => setStoppedMessage(null), 3000)
     }
-    window.addEventListener('transcodingStarted', handleStart)
     window.addEventListener('transcodingCancelled', handleCancel)
     return () => {
-      window.removeEventListener('transcodingStarted', handleStart)
       window.removeEventListener('transcodingCancelled', handleCancel)
     }
   }, [])
 
   React.useEffect(() => {
-    if (!isPolling) return
-
     const checkStatus = async () => {
       try {
         const res = await ConfigService.getTranscodingStatus()
         if (res.data.is_running) {
           setStatus(res.data)
+          if (!isRunningRef.current) {
+            isRunningRef.current = true
+            clearInterval(intervalRef.current)
+            intervalRef.current = setInterval(checkStatus, 3000)
+          }
         } else {
           setStatus(null)
-          setIsPolling(false)
+          if (isRunningRef.current) {
+            isRunningRef.current = false
+            clearInterval(intervalRef.current)
+            intervalRef.current = setInterval(checkStatus, 15000)
+          }
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
-    checkStatus()
-    const interval = setInterval(checkStatus, 3000)
-    return () => clearInterval(interval)
-  }, [isPolling])
+    const init = async () => {
+      await checkStatus()
+      if (!intervalRef.current) {
+        intervalRef.current = setInterval(checkStatus, 15000)
+      }
+    }
+    init()
+
+    return () => {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+  }, [])
 
   if (!status && !stoppedMessage) return null
 
-  if (stoppedMessage) {
+  if (stoppedMessage && open) {
     return (
       <>
-        <Box sx={{ pl: 2, pr: 2, pb: 1 }}>
-          <Typography
-            sx={{
-              fontFamily: 'monospace',
-              fontWeight: 600,
-              fontSize: open ? 15 : 12,
-              color: '#999',
-            }}
-          >
-            {stoppedMessage}
-          </Typography>
+        <Box
+          sx={{
+            width: 222,
+            m: 1,
+            px: 2,
+            py: 1.5,
+            border: '1px solid rgba(194, 224, 255, 0.18)',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            color: '#EBEBEB',
+            fontWeight: 600,
+            fontSize: 13,
+            backgroundColor: 'transparent',
+            ':hover': {
+              backgroundColor: 'rgba(194, 224, 255, 0.08)',
+            },
+          }}
+        >
+          <Grid container alignItems="center">
+            <Grid item>
+              <Typography
+                sx={{
+                  fontFamily: 'monospace',
+                  fontWeight: 600,
+                  fontSize: 12,
+                  color: '#EBEBEB',
+                }}
+              >
+                {stoppedMessage}
+              </Typography>
+            </Grid>
+          </Grid>
         </Box>
-        <Divider />
       </>
     )
   }
@@ -87,49 +105,68 @@ const TranscodingStatus = ({ open }) => {
   if (open) {
     return (
       <>
-        <Box
-          sx={{
-            pl: 2,
-            pr: 2,
-            pb: 1,
-          }}
-        >
-          <Typography
+        <Tooltip title={status.current_video || 'Not transcoding'} arrow placement="right">
+          <Box
             sx={{
-              fontFamily: 'monospace',
-              fontWeight: 600,
-              fontSize: 15,
+              width: 222,
+              m: 1,
+              px: 2,
+              py: 1.5,
+              border: '1px solid rgba(194, 224, 255, 0.18)',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
               color: '#EBEBEB',
+              fontWeight: 600,
+              fontSize: 13,
+              backgroundColor: 'transparent',
+              ':hover': {
+                backgroundColor: 'rgba(194, 224, 255, 0.08)',
+              },
             }}
           >
-            {status.total === 0 ? (
-              'Preparing transcode...'
-            ) : (
-              <>
-                Transcoding{' '}
-                <Box component="span" sx={{ color: '#FF9800' }}>
-                  {status.current}/{status.total}
-                </Box>
-              </>
-            )}
-          </Typography>
-          {status.current_video && (
-            <Tooltip title={status.current_video} arrow placement="right">
-              <Typography
-                sx={{
-                  fontFamily: 'monospace',
-                  fontSize: 12,
-                  color: '#999',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                }}
-              >
-                {status.current_video}
-              </Typography>
-            </Tooltip>
-          )}
-        </Box>
-        <Divider />
+            <Grid container alignItems="center">
+              <Grid item sx={{
+                overflow: 'hidden'
+              }}>
+                <Typography
+                  sx={{
+                    fontFamily: 'monospace',
+                    fontWeight: 600,
+                    fontSize: 12,
+                    color: '#EBEBEB',
+                  }}
+                >
+                  {status.total === 0 ? (
+                    'Preparing transcode...'
+                  ) : (
+                    <>
+                      Transcoding:{' '}
+                      <Box component="span" sx={{ color: '#2684FF' }}>
+                        {status.current}/{status.total}
+                      </Box>
+                    </>
+                  )}
+                </Typography>
+                {status.current_video && (
+
+                  <Typography
+                    sx={{
+                      fontFamily: 'monospace',
+                      fontSize: 10,
+                      color: '#999',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {status.current_video}
+                  </Typography>
+                )}
+              </Grid>
+            </Grid>
+          </Box>
+        </Tooltip >
       </>
     )
   }
@@ -143,24 +180,40 @@ const TranscodingStatus = ({ open }) => {
       <Tooltip title={tooltipText} arrow placement="right">
         <Box
           sx={{
-            pl: 2,
-            pr: 2,
-            pb: 1,
+            width: 42,
+            m: 1,
+            height: 40,
+            border: '1px solid rgba(194, 224, 255, 0.18)',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            ':hover': {
+              backgroundColor: 'rgba(194, 224, 255, 0.08)',
+            },
           }}
         >
           <Typography
             sx={{
               fontFamily: 'monospace',
               fontWeight: 600,
-              fontSize: 12,
-              color: '#FF9800',
+              fontSize: 15,
+              color: '#EBEBEB',
             }}
           >
-            {status.total === 0 ? '...' : `${status.current}/${status.total}`}
+            <IconButton sx={{ p: 0.5, pointerEvents: 'all' }}>
+              <SyncIcon sx={{
+                color: '#EBEBEB',
+                animation: 'spin 1.5s linear infinite',
+                '@keyframes spin': {
+                  '0%': { transform: 'rotate(360deg)' },
+                  '100%': { transform: 'rotate(0deg)' },
+                },
+              }} />
+            </IconButton>
           </Typography>
         </Box>
       </Tooltip>
-      <Divider />
     </>
   )
 }

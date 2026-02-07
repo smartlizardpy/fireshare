@@ -188,8 +188,8 @@ const Settings = ({ authenticated }) => {
     }
   }
 
-  const checkForWarnings  = async () =>{
-      let warnings = await WarningService.getAdminWarnings()
+  const checkForWarnings = async () => {
+    let warnings = await WarningService.getAdminWarnings()
 
     if (Object.keys(warnings.data).length === 0)
       return;
@@ -540,7 +540,7 @@ const Settings = ({ authenticated }) => {
                       size="small"
                     />
                     <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
-                      Transcoding is disabled. Set ENABLE_TRANSCODING=true in your docker container to enable.
+                      Set ENABLE_TRANSCODING=true in your docker container to enable.
                     </Typography>
                   </Box>
                 ) : (
