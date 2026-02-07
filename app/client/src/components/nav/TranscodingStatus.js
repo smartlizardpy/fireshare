@@ -5,11 +5,60 @@ import Tooltip from '@mui/material/Tooltip'
 import { ConfigService } from '../../services'
 import SyncIcon from '@mui/icons-material/Sync'
 
+// Module-level singleton polling to prevent duplicate requests
+// when multiple component instances are mounted (e.g. mobile + desktop drawers)
+let subscribers = new Set()
+let pollingTimer = null
+let isRunning = false
+
+function notifySubscribers(data) {
+  subscribers.forEach((cb) => cb(data))
+}
+
+async function checkStatus() {
+  if (subscribers.size === 0) return
+  try {
+    const res = await ConfigService.getTranscodingStatus()
+    if (subscribers.size === 0) return
+    if (res.data.is_running) {
+      isRunning = true
+      notifySubscribers(res.data)
+      scheduleNext(3000)
+    } else {
+      isRunning = false
+      notifySubscribers(null)
+      scheduleNext(15000)
+    }
+  } catch (e) {
+    if (subscribers.size > 0) {
+      scheduleNext(isRunning ? 3000 : 15000)
+    }
+  }
+}
+
+function scheduleNext(delay) {
+  clearTimeout(pollingTimer)
+  pollingTimer = setTimeout(checkStatus, delay)
+}
+
+function subscribe(cb) {
+  const wasEmpty = subscribers.size === 0
+  subscribers.add(cb)
+  if (wasEmpty) {
+    checkStatus()
+  }
+  return () => {
+    subscribers.delete(cb)
+    if (subscribers.size === 0) {
+      clearTimeout(pollingTimer)
+      pollingTimer = null
+    }
+  }
+}
+
 const TranscodingStatus = ({ open }) => {
   const [status, setStatus] = React.useState(null)
   const [stoppedMessage, setStoppedMessage] = React.useState(null)
-  const intervalRef = React.useRef(null)
-  const isRunningRef = React.useRef(false)
 
   React.useEffect(() => {
     const handleCancel = () => {
@@ -24,39 +73,7 @@ const TranscodingStatus = ({ open }) => {
   }, [])
 
   React.useEffect(() => {
-    const checkStatus = async () => {
-      try {
-        const res = await ConfigService.getTranscodingStatus()
-        if (res.data.is_running) {
-          setStatus(res.data)
-          if (!isRunningRef.current) {
-            isRunningRef.current = true
-            clearInterval(intervalRef.current)
-            intervalRef.current = setInterval(checkStatus, 3000)
-          }
-        } else {
-          setStatus(null)
-          if (isRunningRef.current) {
-            isRunningRef.current = false
-            clearInterval(intervalRef.current)
-            intervalRef.current = setInterval(checkStatus, 15000)
-          }
-        }
-      } catch (e) { }
-    }
-
-    const init = async () => {
-      await checkStatus()
-      if (!intervalRef.current) {
-        intervalRef.current = setInterval(checkStatus, 15000)
-      }
-    }
-    init()
-
-    return () => {
-      clearInterval(intervalRef.current)
-      intervalRef.current = null
-    }
+    return subscribe(setStatus)
   }, [])
 
   if (!status && !stoppedMessage) return null
