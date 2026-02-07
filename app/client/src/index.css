@@ -10,10 +10,6 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
 
-video {
-  max-height: calc(100vh - 65px);
-}
-
 @-webkit-keyframes fadeIn {
   0% {
     opacity: 0;
