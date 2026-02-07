@@ -645,8 +645,8 @@ def transcode_videos(regenerate, video, include_corrupt):
         total_videos = len(vinfos)
         logger.info(f'Processing {total_videos:,} videos for transcoding (GPU: {use_gpu}, Encoder: {encoder_preference})')
 
-        # Write initial transcoding status
-        util.write_transcoding_status(paths['data'], 0, total_videos)
+        # Write initial transcoding status with our PID so the API can track us
+        util.write_transcoding_status(paths['data'], 0, total_videos, pid=os.getpid())
 
         for idx, vi in enumerate(vinfos, 1):
             # Update transcoding progress with the video title
