@@ -413,7 +413,6 @@ const Dashboard = ({ authenticated, searchText, cardSize, listStyle, showRelease
                       authenticated={authenticated}
                       size={cardSize}
                       showUploadCard={selectedFolder.value === 'All Videos'}
-                      fetchVideos={fetchVideos}
                       editMode={editMode}
                       selectedVideos={selectedVideos}
                       onVideoSelect={handleVideoSelect}

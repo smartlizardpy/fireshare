@@ -50,11 +50,6 @@ const GameVideos = ({ cardSize, authenticated, searchText }) => {
     setToolbarTarget(document.getElementById('navbar-toolbar-extra'))
   }, [])
 
-  function fetchVideos() {
-    GameService.getGameVideos(gameId)
-      .then((res) => setVideos(res.data || []))
-      .catch((err) => console.error(err))
-  }
 
   // Check if date grouping should be shown
   const showDateGroups = getSetting('ui_config')?.show_date_groups !== false
@@ -106,7 +101,6 @@ const GameVideos = ({ cardSize, authenticated, searchText }) => {
           authenticated={authenticated}
           size={cardSize}
           feedView={false}
-          fetchVideos={fetchVideos}
           showDateHeaders={!skipDateGrouping}
         />
       </Box>
