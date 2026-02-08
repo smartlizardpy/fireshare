@@ -16,7 +16,6 @@ const UploadCard = ({ authenticated, handleAlert, mini}) => {
   const [isSelected, setIsSelected] = React.useState(false)
   const [progress, setProgress] = React.useState(0)
   const [uploadRate, setUploadRate] = React.useState()
-  const app_config = getSetting('app_config')
   const uiConfig = getSetting('ui_config')
 
   const changeHandler = (event) => {
@@ -183,8 +182,8 @@ const UploadCard = ({ authenticated, handleAlert, mini}) => {
                   onChange={changeHandler}
                 />
               )}
-              {!mini && <CloudUploadIcon sx={{ fontSize: 32 }} />}
-              {mini && progress === 0 && <CloudUploadIcon sx={{ fontSize: 20 }} />}
+              {progress === 0 && !mini && <CloudUploadIcon sx={{ fontSize: 32 }} />}
+              {progress === 0 && mini && progress === 0 && <CloudUploadIcon sx={{ fontSize: 20 }} />}
               {progress !== 0 && progress !== 1 && (
                 <>
                   {!mini ?
@@ -214,6 +213,11 @@ const UploadCard = ({ authenticated, handleAlert, mini}) => {
                   >
                     This may take a few minutes
                   </Typography>
+                </Typography>
+              )}
+              {progress === 1 && mini && (
+                <Typography component="div" variant="overline" align="center" justifyItems="center" sx={{ fontWeight: 600, fontSize: 12 }}>
+                  100%
                 </Typography>
               )}
             </Stack>
